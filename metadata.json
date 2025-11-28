@@ -1,0 +1,5 @@
+{
+  "name": "FinSight AI - Financial Analyzer",
+  "description": "An AI-powered financial statement analysis tool designed for accountants to assess liquidity, identify variances, and visualize financial health from uploaded documents.",
+  "requestFramePermissions": []
+}

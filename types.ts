@@ -3,6 +3,7 @@ export interface FinancialMetric {
   label: string;
   value: number;
   unit: string;
+  year: string; // Added to support filtering by fiscal year
 }
 
 export interface FinancialRatio {

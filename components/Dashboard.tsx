@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LineChart, Line, Legend, ReferenceLine
 } from 'recharts';
-import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw, Building2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw, Building2, CalendarRange } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface DashboardProps {
@@ -19,11 +19,35 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset }) => {
   const [viewMode, setViewMode] = useState<'dashboard' | 'report' | 'accounts'>('dashboard');
   const [selectedEntity, setSelectedEntity] = useState<string>('Overview');
+  const [selectedYear, setSelectedYear] = useState<string>('');
   const [accountSearch, setAccountSearch] = useState('');
   const [chartType, setChartType] = useState<'bar' | 'pie' | 'line'>('bar');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('');
   const [comparisonMetric, setComparisonMetric] = useState<string>('กำไรสุทธิ');
+
+  // Calculate available years from data
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    // Check main metrics
+    data.key_metrics?.forEach(m => {
+      if (m.year) years.add(m.year);
+    });
+    // Check entity metrics
+    data.entity_insights?.forEach(e => {
+      e.key_metrics.forEach(m => {
+        if (m.year) years.add(m.year);
+      });
+    });
+    return Array.from(years).sort().reverse(); // Sort descending (latest first)
+  }, [data]);
+
+  // Set default year
+  useEffect(() => {
+    if (availableYears.length > 0 && !selectedYear) {
+      setSelectedYear(availableYears[0]);
+    }
+  }, [availableYears]);
 
   // Update filename based on context
   useEffect(() => {
@@ -43,44 +67,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     return entities;
   }, [data]);
 
-  // Prepare Comparative Data
+  // Prepare Comparative Data filtered by Selected Year
   const comparisonData = useMemo(() => {
     if (!data.entity_insights || data.entity_insights.length === 0) return [];
 
     return data.entity_insights.map(entity => {
-      // Find the specific metric value for this entity
-      const metric = entity.key_metrics.find(m => m.label.includes(comparisonMetric));
+      // Find the specific metric value for this entity AND selected Year
+      const metric = entity.key_metrics.find(m => 
+        m.label.includes(comparisonMetric) && 
+        (!selectedYear || m.year === selectedYear)
+      );
+      
       return {
         name: entity.name,
         value: metric ? metric.value : 0,
         unit: metric ? metric.unit : ''
       };
     });
-  }, [data.entity_insights, comparisonMetric]);
+  }, [data.entity_insights, comparisonMetric, selectedYear]);
 
-  // Derived data based on selection
+  // Derived data based on selection (Entity & Year)
   const currentData = useMemo(() => {
+    let metrics = [];
+    let summary = '';
+    let future = '';
+    let liquidityStatus = null;
+    let anomalies = [];
+    let ratios = [];
+
     if (selectedEntity === 'Overview') {
-      return {
-        summary: data.summary,
-        future: data.future_outlook,
-        metrics: data.key_metrics,
-        anomalies: data.anomalies,
-        liquidityStatus: null,
-        ratios: data.financial_ratios
-      };
+      summary = data.summary;
+      future = data.future_outlook;
+      anomalies = data.anomalies;
+      ratios = data.financial_ratios;
+      // Filter metrics by Year
+      metrics = data.key_metrics.filter(m => !selectedYear || m.year === selectedYear);
     } else {
       const entityData = data.entity_insights?.find(e => e.name === selectedEntity);
-      return {
-        summary: entityData?.summary || "No data available for this entity.",
-        future: "Future outlook available in consolidated overview.",
-        metrics: entityData?.key_metrics || [],
-        anomalies: data.anomalies.filter(a => a.related_entity === selectedEntity || !a.related_entity),
-        liquidityStatus: entityData?.liquidity_status,
-        ratios: [] // Specific entity ratios might not be available
-      };
+      summary = entityData?.summary || "No data available for this entity.";
+      future = "Future outlook available in consolidated overview.";
+      anomalies = data.anomalies.filter(a => a.related_entity === selectedEntity || !a.related_entity);
+      liquidityStatus = entityData?.liquidity_status;
+      ratios = [];
+      // Filter entity metrics by Year
+      metrics = entityData?.key_metrics.filter(m => !selectedYear || m.year === selectedYear) || [];
     }
-  }, [selectedEntity, data]);
+
+    return {
+      summary,
+      future,
+      metrics,
+      anomalies,
+      liquidityStatus,
+      ratios
+    };
+  }, [selectedEntity, selectedYear, data]);
 
   // Filter accounts based on search
   const filteredAccounts = useMemo(() => {
@@ -122,7 +163,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       return (
         <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
           <BarChart3 size={32} className="mb-2 opacity-50"/>
-          <span>ไม่มีข้อมูลตัวเลขสำหรับหน่วยงานนี้</span>
+          <span>ไม่มีข้อมูลตัวเลขสำหรับหน่วยงานนี้ (ปี {selectedYear})</span>
         </div>
       );
     }
@@ -283,6 +324,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          
+          {/* Entity Filter */}
           {viewMode !== 'accounts' && availableEntities.length > 1 && (
             <div className="relative group">
               <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors" />
@@ -297,6 +340,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
               </select>
             </div>
           )}
+
+          {/* Year Filter */}
+          {availableYears.length > 0 && (
+             <div className="relative group">
+                <CalendarRange size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
+                >
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>ปี {year}</option>
+                  ))}
+                </select>
+             </div>
+          )}
+
+          <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
 
           <div className="bg-slate-100/80 p-1 rounded-xl flex gap-1">
              {[
@@ -339,8 +400,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
              <p className="text-slate-600 text-lg">Financial Analysis Report - {viewMode === 'dashboard' ? 'Executive Dashboard' : viewMode === 'accounts' ? 'Account Details' : 'Full Report'}</p>
           </div>
           <div className="text-right">
-             <div className="text-sm text-slate-500">หน่วยงาน</div>
-             <div className="text-xl font-bold text-indigo-700">{selectedEntity}</div>
+             <div className="text-sm text-slate-500">หน่วยงาน / ปีงบประมาณ</div>
+             <div className="text-xl font-bold text-indigo-700">{selectedEntity} / {selectedYear}</div>
           </div>
         </div>
       </div>
@@ -362,7 +423,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                  </div>
                  <div>
                     <h3 className="text-xl font-bold text-slate-800">บทสรุปผู้บริหาร</h3>
-                    <p className="text-slate-500 text-sm">{selectedEntity}</p>
+                    <p className="text-slate-500 text-sm">{selectedEntity} (ปี {selectedYear})</p>
                  </div>
                </div>
                {currentData.liquidityStatus && (
@@ -401,7 +462,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                      <Building2 size={20} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800">การเปรียบเทียบระหว่างหน่วยงาน</h3>
+                    <h3 className="text-lg font-bold text-slate-800">การเปรียบเทียบระหว่างหน่วยงาน ({selectedYear})</h3>
                     <p className="text-xs text-slate-500">Comparative Entity Analysis</p>
                   </div>
                 </div>
@@ -425,7 +486,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
               </div>
 
               <div className="h-[350px]">
-                {comparisonData.length > 0 ? (
+                {comparisonData.length > 0 && comparisonData.some(d => d.value !== 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={comparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -450,7 +511,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                 ) : (
                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
                       <Building2 size={32} className="mb-2 opacity-50"/>
-                      <span>ไม่มีข้อมูลเปรียบเทียบสำหรับตัวชี้วัดนี้</span>
+                      <span>ไม่มีข้อมูลเปรียบเทียบสำหรับปี {selectedYear}</span>
                    </div>
                 )}
               </div>
@@ -464,7 +525,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                   <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
                      <BarChart3 size={20} />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน ({selectedEntity})</h3>
+                  <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน ({selectedEntity} ปี {selectedYear})</h3>
                 </div>
                 
                 <div className="flex bg-slate-100 rounded-lg p-1 gap-1 no-print">

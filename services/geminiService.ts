@@ -76,9 +76,10 @@ const analysisSchema: Schema = {
         properties: {
           label: { type: Type.STRING, description: "Label in Thai (e.g., สินทรัพย์รวม)" },
           value: { type: Type.NUMBER },
-          unit: { type: Type.STRING, description: "Currency unit (e.g., THB)" }
+          unit: { type: Type.STRING, description: "Currency unit (e.g., THB)" },
+          year: { type: Type.STRING, description: "Fiscal Year (e.g., '2567', '2568'). Must be extracted." }
         },
-        required: ["label", "value"]
+        required: ["label", "value", "year"]
       }
     },
     anomalies: {
@@ -127,8 +128,10 @@ const analysisSchema: Schema = {
                properties: {
                  label: { type: Type.STRING },
                  value: { type: Type.NUMBER },
-                 unit: { type: Type.STRING }
-               }
+                 unit: { type: Type.STRING },
+                 year: { type: Type.STRING, description: "Fiscal Year (e.g., '2567', '2568')." }
+               },
+               required: ["label", "value", "year"]
              }
           }
         },
@@ -184,15 +187,17 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
       **IMPORTANT: Comparative Analysis Instruction**
       If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
       
-      For 'entity_insights.key_metrics', you MUST try to extract and standardize these 7 specific metrics for EVERY entity to allow for comparison graphs:
-      1. "รายได้รวม" (Total Revenue)
-      2. "ค่าใช้จ่ายรวม" (Total Expenses)
-      3. "กำไรสุทธิ" (Net Profit)
-      4. "กำไรขั้นต้น" (Gross Profit)
-      5. "EBITDA"
-      6. "สินทรัพย์รวม" (Total Assets)
-      7. "หนี้สินรวม" (Total Liabilities)
-      *Use exactly these Thai labels in the key_metrics for consistency.*
+      For 'entity_insights.key_metrics' AND 'key_metrics', you MUST:
+      1. Extract data for **ALL Available Fiscal Years** found in the document columns (e.g., 2567, 2568, 2024, 2025). 
+      2. Explicitly fill the 'year' field for every metric.
+      3. Try to extract and standardize these 7 specific metrics for comparison:
+         - "รายได้รวม" (Total Revenue)
+         - "ค่าใช้จ่ายรวม" (Total Expenses)
+         - "กำไรสุทธิ" (Net Profit)
+         - "กำไรขั้นต้น" (Gross Profit)
+         - "EBITDA"
+         - "สินทรัพย์รวม" (Total Assets)
+         - "หนี้สินรวม" (Total Liabilities)
 
       **Specific Analysis Instructions:**
 

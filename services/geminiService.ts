@@ -184,12 +184,14 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
       **IMPORTANT: Comparative Analysis Instruction**
       If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
       
-      For 'entity_insights.key_metrics', you MUST try to extract and standardize these 5 specific metrics for EVERY entity to allow for comparison graphs:
+      For 'entity_insights.key_metrics', you MUST try to extract and standardize these 7 specific metrics for EVERY entity to allow for comparison graphs:
       1. "รายได้รวม" (Total Revenue)
       2. "ค่าใช้จ่ายรวม" (Total Expenses)
       3. "กำไรสุทธิ" (Net Profit)
-      4. "สินทรัพย์รวม" (Total Assets)
-      5. "หนี้สินรวม" (Total Liabilities)
+      4. "กำไรขั้นต้น" (Gross Profit)
+      5. "EBITDA"
+      6. "สินทรัพย์รวม" (Total Assets)
+      7. "หนี้สินรวม" (Total Liabilities)
       *Use exactly these Thai labels in the key_metrics for consistency.*
 
       **Specific Analysis Instructions:**

@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AnalysisResult } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, LineChart, Line, Legend
+  PieChart, Pie, LineChart, Line, Legend, ReferenceLine
 } from 'recharts';
 import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw, Building2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -23,7 +23,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
   const [chartType, setChartType] = useState<'bar' | 'pie' | 'line'>('bar');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('');
-  const [comparisonMetric, setComparisonMetric] = useState<string>('รายได้รวม');
+  const [comparisonMetric, setComparisonMetric] = useState<string>('กำไรสุทธิ');
 
   // Update filename based on context
   useEffect(() => {
@@ -55,7 +55,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         value: metric ? metric.value : 0,
         unit: metric ? metric.unit : ''
       };
-    }).filter(item => item.value > 0); // Only show positive values to avoid empty bars
+    });
   }, [data.entity_insights, comparisonMetric]);
 
   // Derived data based on selection
@@ -400,9 +400,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                     onChange={(e) => setComparisonMetric(e.target.value)}
                     className="bg-transparent text-sm text-slate-700 font-medium focus:outline-none cursor-pointer pr-2"
                   >
+                    <option value="กำไรสุทธิ">กำไรสุทธิ (Net Profit)</option>
                     <option value="รายได้รวม">รายได้รวม (Total Revenue)</option>
                     <option value="ค่าใช้จ่ายรวม">ค่าใช้จ่ายรวม (Total Expenses)</option>
-                    <option value="กำไรสุทธิ">กำไรสุทธิ (Net Profit)</option>
+                    <option value="กำไรขั้นต้น">กำไรขั้นต้น (Gross Profit)</option>
+                    <option value="EBITDA">EBITDA</option>
                     <option value="สินทรัพย์รวม">สินทรัพย์รวม (Total Assets)</option>
                     <option value="หนี้สินรวม">หนี้สินรวม (Total Liabilities)</option>
                   </select>
@@ -421,9 +423,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                         cursor={{fill: '#f8fafc'}}
                       />
-                      <Bar dataKey="value" name={comparisonMetric} radius={[8, 8, 0, 0]} barSize={50}>
-                        {comparisonData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <ReferenceLine y={0} stroke="#cbd5e1" />
+                      <Bar dataKey="value" name={comparisonMetric} radius={[4, 4, 4, 4]} barSize={50}>
+                        {comparisonData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.value < 0 ? '#ef4444' : COLORS[index % COLORS.length]} 
+                          />
                         ))}
                       </Bar>
                     </BarChart>

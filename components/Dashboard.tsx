@@ -91,6 +91,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     );
   }, [data.account_insights, accountSearch]);
 
+  // Logic to get Top 5 Anomalies sorted by Impact
+  const topAnomalies = useMemo(() => {
+    const impactWeight: Record<string, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
+    
+    return [...currentData.anomalies]
+      .sort((a, b) => {
+        const weightA = impactWeight[a.impact] || 0;
+        const weightB = impactWeight[b.impact] || 0;
+        return weightB - weightA; // Descending order (High first)
+      })
+      .slice(0, 5); // Take only top 5
+  }, [currentData.anomalies]);
+
   const handleExportPDF = () => {
     setShowSaveDialog(false);
     
@@ -514,11 +527,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
           <div className="lg:col-span-3 print:break-before-auto">
             <h3 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
               <span className="w-1 h-6 bg-rose-500 rounded-full inline-block"></span>
-              รายการที่มีการเปลี่ยนแปลงอย่างมีนัยสำคัญ
+              รายการที่มีการเปลี่ยนแปลงอย่างมีนัยสำคัญ (5 อันดับสูงสุด)
             </h3>
-            {currentData.anomalies.length > 0 ? (
+            {topAnomalies.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 print:grid-cols-2">
-                {currentData.anomalies.map((item, idx) => (
+                {topAnomalies.map((item, idx) => (
                   <div key={idx} className={`p-5 rounded-2xl border bg-white shadow-sm hover:shadow-lg transition-all duration-300 break-inside-avoid relative overflow-hidden print:shadow-none ${
                       item.impact === 'High' ? 'border-rose-100 hover:border-rose-300' : 
                       item.impact === 'Medium' ? 'border-amber-100 hover:border-amber-300' : 

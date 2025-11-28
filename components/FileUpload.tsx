@@ -1,6 +1,6 @@
 
 import React, { ChangeEvent } from 'react';
-import { Upload, FileText, Image as ImageIcon, FileSpreadsheet, FileDigit, CloudLightning } from 'lucide-react';
+import { Upload, FileText, Image as ImageIcon, FileSpreadsheet, FileDigit } from 'lucide-react';
 import { FileData } from '../types';
 
 interface FileUploadProps {
@@ -116,7 +116,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, isLoading,
       <div 
         className={`relative group transition-all duration-300 ${
           isLoading 
-            ? 'p-1 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500' 
+            ? 'p-1 rounded-2xl bg-gradient-to-r from-orange-400 via-pink-500 to-indigo-500' 
             : 'p-0'
         }`}
       >
@@ -142,25 +142,33 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, isLoading,
           <div className="z-10 flex flex-col items-center text-center space-y-6 max-w-md mx-auto p-6">
             
             {isLoading ? (
-              <div className="w-full space-y-6">
-                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto animate-pulse">
-                   <CloudLightning className="text-indigo-600 animate-bounce" size={36} />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-slate-800">กำลังวิเคราะห์ข้อมูล...</h3>
-                  <p className="text-slate-500 text-sm">AI กำลังอ่านงบการเงินและประมวลผลความเสี่ยง</p>
+              <div className="w-full space-y-4">
+                {/* Cute Running Cat GIF */}
+                <div className="w-48 h-32 mx-auto flex items-end justify-center overflow-hidden">
+                   <img 
+                    src="https://media.giphy.com/media/3o7qE1YN7aQfVjjz8I/giphy.gif" 
+                    alt="Loading Cat"
+                    className="h-full object-contain mix-blend-multiply"
+                   />
                 </div>
                 
-                <div className="relative pt-4">
-                  <div className="flex justify-between text-xs font-bold text-indigo-600 mb-2">
-                    <span>Processing</span>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-slate-800 animate-pulse">น้องแมว AI กำลังวิ่งอ่านงบ...</h3>
+                  <p className="text-slate-500 text-sm">กำลังวิเคราะห์ข้อมูลทางการเงินด้วยความเร็วแสง</p>
+                </div>
+                
+                <div className="relative pt-4 px-8">
+                  <div className="flex justify-between text-xs font-bold text-pink-500 mb-2">
+                    <span>Meow Processing...</span>
                     <span>{progress}%</span>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
+                  <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden shadow-inner border border-slate-100">
                     <div 
-                      className="bg-gradient-to-r from-indigo-600 to-purple-500 h-3 rounded-full transition-all duration-500 ease-out shadow-lg shadow-indigo-200" 
+                      className="bg-gradient-to-r from-orange-400 to-pink-500 h-4 rounded-full transition-all duration-500 ease-out shadow-lg shadow-pink-200 relative" 
                       style={{ width: `${progress}%` }}
-                    ></div>
+                    >
+                        <div className="absolute top-0 left-0 w-full h-full opacity-30 bg-[url('https://www.transparenttextures.com/patterns/diagonal-stripes.png')] animate-[spin_2s_linear_infinite]"></div>
+                    </div>
                   </div>
                 </div>
               </div>

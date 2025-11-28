@@ -160,8 +160,10 @@ const parseExcelContent = (base64Data: string): string => {
     
     workbook.SheetNames.forEach(sheetName => {
       const worksheet = workbook.Sheets[sheetName];
-      const csv = utils.sheet_to_csv(worksheet);
-      combinedText += `--- Sheet Name: ${sheetName} (Treat this as a specific Entity/Department if applicable) ---\n${csv}\n\n`;
+      // Convert to CSV but keep it clean - remove completely empty rows
+      const csv = utils.sheet_to_csv(worksheet, { blankrows: false });
+      // Further optimize by truncating very long empty strings if necessary or limiting rows
+      combinedText += `--- Sheet Name: ${sheetName} ---\n${csv}\n\n`;
     });
     
     return combinedText;
@@ -176,28 +178,18 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
     const model = "gemini-2.5-flash";
     
     const promptText = `
-      คุณคือผู้เชี่ยวชาญด้านบัญชีและการเงิน (CPA / Financial Analyst)
-      หน้าที่ของคุณคือวิเคราะห์งบการเงินโดยเน้น **"การวิเคราะห์เปรียบเทียบ (Variance Analysis)"**, **"การวิเคราะห์แยกหน่วยงาน (Entity Analysis)"** และ **"การวิเคราะห์แนวโน้มในอนาคต (Future Outlook)"**
+      Analyze this financial document as a Senior CPA.
+      Focus: Variance Analysis, Entity Analysis, Future Outlook.
+      Language: Thai (ภาษาไทย).
       
-      กรุณาวิเคราะห์ประเด็นต่อไปนี้เป็นภาษาไทย:
-      
-      1. **ภาพรวม (Consolidated View):**
-         - วิเคราะห์รายการที่มีการเปลี่ยนแปลงอย่างมีนัยสำคัญ
-         - สภาพคล่องภาพรวม และความสามารถในการทำกำไร
-      
-      2. **แนวโน้มในอนาคต (Future Outlook):**
-         - จากข้อมูลที่มีอยู่ ให้พยากรณ์แนวโน้มสถานะทางการเงิน ความเสี่ยง หรือโอกาสทางธุรกิจในงวดถัดไป
-      
-      3. **อัตราส่วนทางการเงินที่สำคัญ (Key Financial Ratios):**
-         - คำนวณอัตราส่วนสำคัญ ไม่ใช่แค่สภาพคล่อง (Liquidity) แต่รวมถึง ความสามารถในการทำกำไร (Profitability: e.g., Net Profit Margin), ประสิทธิภาพ (Efficiency: e.g., Asset Turnover), และหนี้สิน (Leverage: e.g., D/E Ratio)
-      
-      4. **การวิเคราะห์แยกรายหน่วยงาน (Entity Breakdown):**
-         - หากในเอกสารมีการแบ่งข้อมูลตามหน่วยงาน (เช่น "การไฟฟ้า", "BusA"), ให้ดึงข้อมูลแยกออกมา
-      
-      5. **รายการผิดปกติ (Anomalies):**
-         - ระบุรายการที่สูงหรือต่ำผิดปกติ
+      Tasks:
+      1. **Consolidated View:** Analyze significant changes, liquidity, and profitability.
+      2. **Future Outlook:** Predict financial trends and risks.
+      3. **Ratios:** Calculate Liquidity, Profitability (Net Margin), Efficiency (Asset Turnover), Leverage (D/E).
+      4. **Entity Breakdown:** If distinct departments/entities exist (e.g., "BusA"), separate their insights.
+      5. **Anomalies:** Detect unusual high/low items.
 
-      Extract numerical data accurately for the JSON response.
+      Extract all data into the defined JSON schema.
     `;
 
     const parts: Part[] = [];
@@ -238,6 +230,8 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
         responseMimeType: "application/json",
         responseSchema: analysisSchema,
         temperature: 0.2,
+        // Optimization: Disable thinking for faster response on 2.5-flash
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
 

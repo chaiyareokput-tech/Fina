@@ -13,7 +13,48 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, isLoading,
   const MAX_FILE_SIZE_MB = 10;
   const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
   
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  // Helper to compress/resize image
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(event.target?.result as string);
+            return;
+          }
+
+          // Resize logic: Max width 1500px to speed up AI processing
+          const MAX_WIDTH = 1500;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height = (height * MAX_WIDTH) / width;
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to JPEG with 0.8 quality
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          // Remove prefix for consistency with existing logic
+          resolve(compressedBase64.split(',')[1]);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -39,24 +80,35 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, isLoading,
       return;
     }
 
-    const reader = new FileReader();
-    
-    reader.onerror = () => {
-      alert("เกิดข้อผิดพลาดในการอ่านไฟล์ กรุณาลองใหม่อีกครั้ง");
-    };
-
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      // Extract base64 content
-      const base64 = result.split(',')[1];
+    try {
+      let base64 = "";
       
+      // Compress if it's an image
+      if (file.type.startsWith('image/')) {
+        base64 = await compressImage(file);
+      } else {
+        // Normal read for PDF/Excel
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+             const res = reader.result as string;
+             resolve(res.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
       onFileSelect({
         base64,
-        mimeType: file.type,
+        mimeType: file.type.startsWith('image/') ? 'image/jpeg' : file.type, // Force jpeg if compressed
         name: file.name
       });
-    };
-    reader.readAsDataURL(file);
+
+    } catch (error) {
+      console.error("File processing error:", error);
+      alert("เกิดข้อผิดพลาดในการประมวลผลไฟล์");
+    }
   };
 
   return (

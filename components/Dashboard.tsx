@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LineChart, Line, Legend
 } from 'recharts';
-import { AlertCircle, CheckCircle, TrendingUp, DollarSign, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, ChevronRight, Briefcase } from 'lucide-react';
+import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface DashboardProps {
@@ -128,7 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
               dataKey="value"
               paddingAngle={2}
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="white" strokeWidth={2} />
               ))}
             </Pie>
@@ -173,7 +173,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
             cursor={{fill: '#f1f5f9'}}
           />
           <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={24}>
-            {currentData.metrics.map((entry, index) => (
+            {currentData.metrics.map((_, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Bar>
@@ -681,6 +681,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
 
         </div>
       )}
+      
+      {/* Footer Actions (Using onReset) */}
+      <div className="text-center pt-8 pb-4 no-print">
+         <button 
+           onClick={onReset}
+           className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-sm font-medium"
+         >
+            <RotateCcw size={16} />
+            เริ่มการวิเคราะห์ไฟล์ใหม่
+         </button>
+      </div>
 
     </div>
   );

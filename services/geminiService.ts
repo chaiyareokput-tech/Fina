@@ -1,6 +1,10 @@
+
 import { GoogleGenAI, Type, Schema, Part } from "@google/genai";
 import { AnalysisResult } from "../types";
 import { read, utils } from "xlsx";
+
+// Declare process to avoid TypeScript errors in browser environment where @types/node might not be fully loaded
+declare const process: any;
 
 // Helper to safely get API Key from either Vite env or Process env
 const getApiKey = (): string => {

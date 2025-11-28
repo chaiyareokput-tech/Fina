@@ -19,35 +19,27 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset }) => {
   const [viewMode, setViewMode] = useState<'dashboard' | 'report' | 'accounts'>('dashboard');
   const [selectedEntity, setSelectedEntity] = useState<string>('Overview');
-  const [selectedYear, setSelectedYear] = useState<string>('');
   const [accountSearch, setAccountSearch] = useState('');
   const [chartType, setChartType] = useState<'bar' | 'pie' | 'line'>('bar');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('');
   const [comparisonMetric, setComparisonMetric] = useState<string>('กำไรสุทธิ');
 
-  // Calculate available years from data
-  const availableYears = useMemo(() => {
+  // Determine the Target Year to display (Priority: 2568 > 2025 > Latest Available)
+  const targetYear = useMemo(() => {
     const years = new Set<string>();
-    // Check main metrics
-    data.key_metrics?.forEach(m => {
-      if (m.year) years.add(m.year);
-    });
-    // Check entity metrics
-    data.entity_insights?.forEach(e => {
-      e.key_metrics.forEach(m => {
-        if (m.year) years.add(m.year);
-      });
-    });
-    return Array.from(years).sort().reverse(); // Sort descending (latest first)
+    // Collect all available years
+    data.key_metrics?.forEach(m => m.year && years.add(m.year));
+    data.entity_insights?.forEach(e => e.key_metrics.forEach(m => m.year && years.add(m.year)));
+    
+    // Priority Check
+    if (years.has("2568")) return "2568";
+    if (years.has("2025")) return "2025";
+    
+    // Fallback: Sort descending and take the latest
+    const sortedYears = Array.from(years).sort((a, b) => b.localeCompare(a));
+    return sortedYears[0] || "";
   }, [data]);
-
-  // Set default year
-  useEffect(() => {
-    if (availableYears.length > 0 && !selectedYear) {
-      setSelectedYear(availableYears[0]);
-    }
-  }, [availableYears]);
 
   // Update filename based on context
   useEffect(() => {
@@ -55,8 +47,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     const prefix = viewMode === 'dashboard' ? 'Dashboard' : viewMode === 'accounts' ? 'Accounts_Insight' : 'Analysis_Report';
     // Sanitize entity name for filename
     const entityName = selectedEntity.replace(/[^a-z0-9]/gi, '_');
-    setSaveFileName(`${prefix}_${entityName}_${dateStr}`);
-  }, [viewMode, selectedEntity]);
+    setSaveFileName(`${prefix}_${entityName}_${targetYear}_${dateStr}`);
+  }, [viewMode, selectedEntity, targetYear]);
 
   // Extract list of available entities from the data
   const availableEntities = useMemo(() => {
@@ -67,15 +59,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     return entities;
   }, [data]);
 
-  // Prepare Comparative Data filtered by Selected Year
+  // Prepare Comparative Data filtered by Target Year
   const comparisonData = useMemo(() => {
     if (!data.entity_insights || data.entity_insights.length === 0) return [];
 
     return data.entity_insights.map(entity => {
-      // Find the specific metric value for this entity AND selected Year
+      // Find the specific metric value for this entity AND target Year
       const metric = entity.key_metrics.find(m => 
         m.label.includes(comparisonMetric) && 
-        (!selectedYear || m.year === selectedYear)
+        (m.year === targetYear) // Strict year matching
       );
       
       return {
@@ -84,7 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         unit: metric ? metric.unit : ''
       };
     });
-  }, [data.entity_insights, comparisonMetric, selectedYear]);
+  }, [data.entity_insights, comparisonMetric, targetYear]);
 
   // Derived data based on selection (Entity & Year)
   const currentData = useMemo(() => {
@@ -100,8 +92,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       future = data.future_outlook;
       anomalies = data.anomalies;
       ratios = data.financial_ratios;
-      // Filter metrics by Year
-      metrics = data.key_metrics.filter(m => !selectedYear || m.year === selectedYear);
+      // Filter metrics STRICTLY by Target Year
+      metrics = data.key_metrics.filter(m => m.year === targetYear);
     } else {
       const entityData = data.entity_insights?.find(e => e.name === selectedEntity);
       summary = entityData?.summary || "No data available for this entity.";
@@ -109,8 +101,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       anomalies = data.anomalies.filter(a => a.related_entity === selectedEntity || !a.related_entity);
       liquidityStatus = entityData?.liquidity_status;
       ratios = [];
-      // Filter entity metrics by Year
-      metrics = entityData?.key_metrics.filter(m => !selectedYear || m.year === selectedYear) || [];
+      // Filter entity metrics STRICTLY by Target Year
+      metrics = entityData?.key_metrics.filter(m => m.year === targetYear) || [];
     }
 
     return {
@@ -121,7 +113,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       liquidityStatus,
       ratios
     };
-  }, [selectedEntity, selectedYear, data]);
+  }, [selectedEntity, targetYear, data]);
 
   // Filter accounts based on search
   const filteredAccounts = useMemo(() => {
@@ -132,27 +124,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     );
   }, [data.account_insights, accountSearch]);
 
-  // Logic to get Top 5 Anomalies sorted by Impact
-  const topAnomalies = useMemo(() => {
-    const impactWeight: Record<string, number> = { 'High': 3, 'Medium': 2, 'Low': 1 };
-    
-    return [...currentData.anomalies]
-      .sort((a, b) => {
-        const weightA = impactWeight[a.impact] || 0;
-        const weightB = impactWeight[b.impact] || 0;
-        return weightB - weightA; // Descending order (High first)
-      })
-      .slice(0, 5); // Take only top 5
-  }, [currentData.anomalies]);
-
   const handleExportPDF = () => {
     setShowSaveDialog(false);
     
     // Use setTimeout to ensure the modal is fully closed before print dialog opens
-    // We print the CURRENT view (WYSIWYG)
     setTimeout(() => {
       const originalTitle = document.title;
-      document.title = saveFileName; // Set title for default "Save As" filename
+      document.title = saveFileName; 
       window.print();
       document.title = originalTitle;
     }, 300);
@@ -163,7 +141,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       return (
         <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
           <BarChart3 size={32} className="mb-2 opacity-50"/>
-          <span>ไม่มีข้อมูลตัวเลขสำหรับหน่วยงานนี้ (ปี {selectedYear})</span>
+          <span>ไม่มีข้อมูลตัวเลขสำหรับปี {targetYear}</span>
         </div>
       );
     }
@@ -341,21 +319,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
             </div>
           )}
 
-          {/* Year Filter */}
-          {availableYears.length > 0 && (
-             <div className="relative group">
-                <CalendarRange size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
-                >
-                  {availableYears.map(year => (
-                    <option key={year} value={year}>ปี {year}</option>
-                  ))}
-                </select>
-             </div>
-          )}
+          {/* Year Indicator (Static) */}
+           <div className="relative px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-sm font-bold text-indigo-700 flex items-center gap-2 shadow-sm">
+              <CalendarRange size={16} />
+              <span>ปี {targetYear}</span>
+           </div>
 
           <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
 
@@ -401,7 +369,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
           </div>
           <div className="text-right">
              <div className="text-sm text-slate-500">หน่วยงาน / ปีงบประมาณ</div>
-             <div className="text-xl font-bold text-indigo-700">{selectedEntity} / {selectedYear}</div>
+             <div className="text-xl font-bold text-indigo-700">{selectedEntity} / {targetYear}</div>
           </div>
         </div>
       </div>
@@ -423,7 +391,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                  </div>
                  <div>
                     <h3 className="text-xl font-bold text-slate-800">บทสรุปผู้บริหาร</h3>
-                    <p className="text-slate-500 text-sm">{selectedEntity} (ปี {selectedYear})</p>
+                    <p className="text-slate-500 text-sm">{selectedEntity} (ปี {targetYear})</p>
                  </div>
                </div>
                {currentData.liquidityStatus && (
@@ -462,8 +430,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                      <Building2 size={20} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800">การเปรียบเทียบระหว่างหน่วยงาน ({selectedYear})</h3>
-                    <p className="text-xs text-slate-500">Comparative Entity Analysis</p>
+                    <h3 className="text-lg font-bold text-slate-800">การเปรียบเทียบระหว่างหน่วยงาน</h3>
+                    <p className="text-xs text-slate-500">ข้อมูลปี {targetYear}</p>
                   </div>
                 </div>
                 
@@ -511,21 +479,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                 ) : (
                    <div className="h-full flex flex-col items-center justify-center text-slate-400">
                       <Building2 size={32} className="mb-2 opacity-50"/>
-                      <span>ไม่มีข้อมูลเปรียบเทียบสำหรับปี {selectedYear}</span>
+                      <span>ไม่มีข้อมูลเปรียบเทียบสำหรับปี {targetYear}</span>
                    </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Key Metrics Chart */}
+          {/* Key Metrics Chart - SINGLE YEAR VIEW */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid flex flex-col h-[450px] print:h-[500px] print:shadow-none print:border print:mb-6">
              <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
                      <BarChart3 size={20} />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน ({selectedEntity} ปี {selectedYear})</h3>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน ({selectedEntity})</h3>
+                    <p className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full w-fit">ปี {targetYear}</p>
+                  </div>
                 </div>
                 
                 <div className="flex bg-slate-100 rounded-lg p-1 gap-1 no-print">
@@ -546,308 +517,210 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
           </div>
 
           {/* Financial Ratios */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid h-[450px] flex flex-col print:h-auto print:shadow-none print:border print:mb-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
-                 <Activity size={20} />
-              </div>
-              <h3 className="text-lg font-bold text-slate-800">
-                {selectedEntity === 'Overview' ? 'อัตราส่วนที่สำคัญ' : 'ข้อมูลเพิ่มเติม'}
-              </h3>
-            </div>
-            
-            {selectedEntity === 'Overview' && currentData.ratios ? (
-              <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 print:overflow-visible print:h-auto">
-                {currentData.ratios.map((ratio, idx) => (
-                  <div key={idx} className="group p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all print:border-b print:border-slate-100 print:rounded-none">
-                    <div className="flex justify-between items-center mb-1">
-                      <div>
-                        <span className="text-sm font-bold text-slate-700 block group-hover:text-indigo-700 transition-colors">{ratio.name}</span>
-                        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">{ratio.category}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-base font-bold block ${
-                          ratio.status === 'Good' ? 'text-emerald-600' : ratio.status === 'Poor' ? 'text-rose-600' : 'text-amber-600'
+          <div className="bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 flex flex-col break-inside-avoid print:shadow-none print:border print:mb-6">
+             <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
+                  <PieIcon size={20} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">อัตราส่วนทางการเงิน</h3>
+             </div>
+             
+             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
+                {currentData.ratios && currentData.ratios.length > 0 ? (
+                  currentData.ratios.map((ratio, index) => (
+                    <div key={index} className="p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-slate-700 text-sm">{ratio.name}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                          ratio.status === 'Good' ? 'bg-emerald-100 text-emerald-700' : 
+                          ratio.status === 'Poor' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'
                         }`}>
-                          {ratio.value.toFixed(2)}
+                          {ratio.status}
                         </span>
                       </div>
+                      <div className="text-2xl font-bold text-slate-800 mb-1">
+                        {ratio.value.toFixed(2)}
+                        {ratio.benchmark && <span className="text-xs text-slate-400 font-normal ml-2">(BM: {ratio.benchmark})</span>}
+                      </div>
+                      <p className="text-xs text-slate-500 leading-snug">{ratio.description}</p>
                     </div>
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                    <p>ไม่มีข้อมูลอัตราส่วน</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-slate-400 text-sm flex flex-col items-center justify-center h-full opacity-60">
-                 <FileText size={48} strokeWidth={1} className="mb-2"/>
-                 <p>ดูรายละเอียดในหน้า Report</p>
-              </div>
-            )}
+                )}
+             </div>
           </div>
 
-          {/* Anomalies Cards */}
-          <div className="lg:col-span-3 print:break-before-auto">
-            <h3 className="text-xl font-bold text-slate-800 mb-5 flex items-center gap-2">
-              <span className="w-1 h-6 bg-rose-500 rounded-full inline-block"></span>
-              รายการที่มีการเปลี่ยนแปลงอย่างมีนัยสำคัญ (5 อันดับสูงสุด)
-            </h3>
-            {topAnomalies.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 print:grid-cols-2">
-                {topAnomalies.map((item, idx) => (
-                  <div key={idx} className={`p-5 rounded-2xl border bg-white shadow-sm hover:shadow-lg transition-all duration-300 break-inside-avoid relative overflow-hidden print:shadow-none ${
-                      item.impact === 'High' ? 'border-rose-100 hover:border-rose-300' : 
-                      item.impact === 'Medium' ? 'border-amber-100 hover:border-amber-300' : 
-                      'border-emerald-100 hover:border-emerald-300'
-                    }`}>
-                    
-                    {/* Background Accent - Hide in print */}
-                    <div className={`absolute top-0 right-0 w-24 h-24 rounded-bl-full opacity-10 transition-transform group-hover:scale-110 print:hidden ${
-                       item.impact === 'High' ? 'bg-rose-500' : item.impact === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'
-                    }`}></div>
-
-                    <div className="flex justify-between items-start mb-3 relative z-10">
-                      <h4 className="font-bold text-slate-800 text-lg pr-4">{item.item}</h4>
-                    </div>
-                    
-                    <div className="flex gap-2 mb-3 relative z-10">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                        item.impact === 'High' ? 'bg-rose-50 text-rose-700 border-rose-100' : 
-                        item.impact === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                        'bg-emerald-50 text-emerald-700 border-emerald-100'
-                      }`}>
-                         {item.impact} Impact
-                      </span>
-                      {item.related_entity && item.related_entity !== selectedEntity && (
-                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
-                           {item.related_entity}
-                         </span>
-                      )}
-                    </div>
-
-                    <p className="text-sm text-slate-600 leading-relaxed relative z-10">{item.observation}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-slate-50 rounded-xl p-8 text-center border border-dashed border-slate-200">
-                <p className="text-slate-500 italic">ไม่พบรายการผิดปกติสำหรับหน่วยงานที่เลือก</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* VIEW: ACCOUNTS ANALYSIS */}
-      {viewMode === 'accounts' && (
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 min-h-[600px] animate-fade-in print:shadow-none print:border-none print:p-0">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 print:hidden">
-             <div className="flex items-center gap-3">
-                <div className="p-3 bg-violet-50 rounded-xl text-violet-600">
-                  <List size={24} />
+          {/* Anomalies / Variances */}
+          <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid print:shadow-none print:border">
+             <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
+                  <Activity size={20} />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-slate-800">วิเคราะห์รายบัญชี</h3>
-                  <p className="text-sm text-slate-500">Account Level Analysis & Audit Assertions</p>
+                   <h3 className="text-lg font-bold text-slate-800">ความผิดปกติและข้อสังเกตสำคัญ (5 อันดับแรก)</h3>
+                   <p className="text-xs text-slate-500">Top 5 High Impact Anomalies</p>
                 </div>
              </div>
-             <div className="relative w-full md:w-72">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="ค้นหาชื่อบัญชี..." 
-                  value={accountSearch}
-                  onChange={(e) => setAccountSearch(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-all shadow-sm"
-                />
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               {currentData.anomalies && currentData.anomalies.length > 0 ? (
+                 // Use logic to slice top 5 (Logic is already in the parent memo, but we need to re-apply filtering here based on currentData context or reuse existing Logic)
+                 // Since currentData.anomalies is already filtered by Entity, we just sort and slice here for display
+                 [...currentData.anomalies]
+                  .sort((a, b) => (b.impact === 'High' ? 1 : 0) - (a.impact === 'High' ? 1 : 0)) // Simple sort High first
+                  .slice(0, 5)
+                  .map((anomaly, index) => (
+                   <div key={index} className="p-4 rounded-xl border-l-4 border-rose-400 bg-rose-50/30 hover:bg-rose-50 transition-colors">
+                     <div className="flex justify-between items-start mb-2">
+                       <span className="font-bold text-slate-800 flex items-center gap-2">
+                         <AlertCircle size={14} className="text-rose-500" />
+                         {anomaly.item}
+                       </span>
+                       <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                         anomaly.impact === 'High' ? 'bg-rose-100 text-rose-600' : 
+                         anomaly.impact === 'Medium' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
+                       }`}>
+                         {anomaly.impact} Impact
+                       </span>
+                     </div>
+                     <p className="text-sm text-slate-600 leading-relaxed">{anomaly.observation}</p>
+                     {anomaly.related_entity && <div className="mt-2 text-xs font-semibold text-indigo-600 bg-indigo-50 w-fit px-2 py-0.5 rounded">{anomaly.related_entity}</div>}
+                   </div>
+                 ))
+               ) : (
+                 <div className="col-span-full py-8 text-center text-slate-400">
+                   ไม่พบความผิดปกติที่มีนัยสำคัญ
+                 </div>
+               )}
              </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2">
-             {filteredAccounts && filteredAccounts.length > 0 ? (
-               filteredAccounts.map((account, idx) => (
-                 <div key={idx} className="group border border-slate-100 rounded-2xl p-6 hover:shadow-lg hover:border-violet-100 transition-all bg-white break-inside-avoid relative overflow-hidden print:shadow-none print:border-slate-200">
-                    <div className="absolute top-0 right-0 w-1 h-full bg-slate-200 group-hover:bg-violet-500 transition-colors print:hidden"></div>
-                    
-                    <div className="flex justify-between items-start mb-4">
-                       <div>
-                          <h4 className="font-bold text-slate-800 text-lg group-hover:text-violet-700 transition-colors">{account.account_name}</h4>
-                          <span className="text-3xl font-bold text-slate-700 block mt-2 tracking-tight">
-                             {new Intl.NumberFormat('th-TH').format(account.value)}
-                          </span>
-                       </div>
-                       <div className="flex flex-col items-end gap-2">
-                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                           account.status === 'Good' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                           account.status === 'Concern' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                           'bg-blue-50 text-blue-700 border-blue-100'
-                         }`}>
-                           {account.status === 'Concern' ? 'น่ากังวล' : account.status === 'Good' ? 'ดีเยี่ยม' : 'ปกติ'}
-                         </span>
-                         {account.change_percentage !== undefined && (
-                            <span className={`text-xs font-bold ${account.change_percentage > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {account.change_percentage > 0 ? '▲' : '▼'} {Math.abs(account.change_percentage)}%
-                            </span>
-                          )}
-                       </div>
-                    </div>
-                    
-                    <div className="bg-slate-50 p-4 rounded-xl text-sm text-slate-600 leading-relaxed border border-slate-100 group-hover:bg-violet-50/30 group-hover:border-violet-100 transition-colors print:bg-white print:p-0 print:border-none">
-                       {account.analysis}
-                    </div>
-                 </div>
-               ))
-             ) : (
-               <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400">
-                  <Search size={48} className="mb-4 opacity-50"/>
-                  <p className="text-lg">{data.account_insights ? "ไม่พบบัญชีที่ค้นหา" : "ไม่มีข้อมูลการวิเคราะห์รายบัญชี"}</p>
-               </div>
-             )}
+        </div>
+      )}
+
+      {/* VIEW: ACCOUNTS */}
+      {viewMode === 'accounts' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border-slate-300">
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <List size={20} className="text-indigo-600"/> รายละเอียดบัญชี (Account Details)
+            </h3>
+            <div className="relative w-full sm:w-64">
+              <input
+                type="text"
+                placeholder="ค้นหาบัญชี..."
+                value={accountSearch}
+                onChange={(e) => setAccountSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4">ชื่อบัญชี</th>
+                  <th className="px-6 py-4 text-right">มูลค่า (บาท)</th>
+                  <th className="px-6 py-4 text-center">การเปลี่ยนแปลง</th>
+                  <th className="px-6 py-4">บทวิเคราะห์</th>
+                  <th className="px-6 py-4 text-center">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredAccounts.length > 0 ? filteredAccounts.map((acc, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-800">{acc.account_name}</td>
+                    <td className="px-6 py-4 text-right font-mono text-slate-700">{new Intl.NumberFormat('th-TH').format(acc.value)}</td>
+                    <td className="px-6 py-4 text-center">
+                      {acc.change_percentage ? (
+                        <span className={`font-bold ${acc.change_percentage > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {acc.change_percentage > 0 ? '+' : ''}{acc.change_percentage}%
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 max-w-xs">{acc.analysis}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex px-2 py-1 rounded text-xs font-bold ${
+                        acc.status === 'Concern' ? 'bg-rose-100 text-rose-700' :
+                        acc.status === 'Good' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {acc.status}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">ไม่พบข้อมูลบัญชีที่ค้นหา</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* VIEW: REPORT */}
+      {/* VIEW: FULL REPORT (TEXT) */}
       {viewMode === 'report' && (
-        <div className="max-w-5xl mx-auto space-y-10 bg-white p-10 md:p-16 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] print:border-none print:shadow-none print:p-0 animate-fade-in">
-          
-          {/* Header Report */}
-          <div className="border-b-2 border-slate-900 pb-8 text-center print:hidden">
-            <h1 className="text-4xl font-extrabold text-slate-900 mb-2 tracking-tight">รายงานวิเคราะห์งบการเงิน</h1>
-            <p className="text-slate-500 font-medium tracking-wide uppercase">Financial Statement Analysis Report</p>
-          </div>
-
-          {/* 1. Executive Summary */}
-          <section className="break-inside-avoid">
-            <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white text-sm">1</span>
-              บทสรุปผู้บริหาร ({selectedEntity})
-            </h3>
-            <div className="prose prose-lg prose-slate max-w-none text-slate-700 bg-slate-50 p-8 rounded-2xl border border-slate-100 print:bg-transparent print:p-0 print:border-none text-justify">
-              <ReactMarkdown>{currentData.summary}</ReactMarkdown>
-            </div>
-          </section>
-
-          {/* 2. Future Outlook */}
-          {selectedEntity === 'Overview' && (
-            <section className="break-inside-avoid">
-              <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                 <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white text-sm">2</span>
-                 การวิเคราะห์แนวโน้มในอนาคต
-              </h3>
-              <div className="prose prose-lg prose-slate max-w-none text-slate-700 bg-indigo-50/50 p-8 rounded-2xl border border-indigo-100 print:bg-transparent print:p-0 print:border-none text-justify">
-                <ReactMarkdown>{currentData.future}</ReactMarkdown>
-              </div>
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto print:shadow-none print:border-none print:p-0">
+          <div className="prose prose-slate max-w-none">
+            <h1 className="text-2xl font-bold text-slate-900 mb-4 border-b pb-4">รายงานการวิเคราะห์ฉบับสมบูรณ์</h1>
+            
+            <section className="mb-8">
+              <h3 className="text-lg font-bold text-indigo-800 bg-indigo-50 p-2 rounded-lg mb-4">1. บทสรุปผู้บริหาร (Executive Summary)</h3>
+              <ReactMarkdown>{data.summary}</ReactMarkdown>
             </section>
-          )}
 
-          {/* 3. Financial Ratios Table */}
-          {selectedEntity === 'Overview' && currentData.ratios && (
-             <section className="break-inside-avoid">
-               <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-                 <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white text-sm">3</span>
-                 อัตราส่วนทางการเงินที่สำคัญ
-              </h3>
-              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">อัตราส่วน</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">ประเภท</th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">ค่าที่ได้</th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">สถานะ</th>
-                      <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">ความหมาย</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-200">
-                    {currentData.ratios.map((ratio, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800">{ratio.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{ratio.category}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-700 text-center">{ratio.value.toFixed(2)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                           <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${
-                             ratio.status === 'Good' ? 'bg-emerald-100 text-emerald-800' : 
-                             ratio.status === 'Poor' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-                           }`}>
-                             {ratio.status}
-                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{ratio.description}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-             </section>
-          )}
+            <section className="mb-8">
+              <h3 className="text-lg font-bold text-indigo-800 bg-indigo-50 p-2 rounded-lg mb-4">2. แนวโน้มและกลยุทธ์ (Future Outlook & Strategy)</h3>
+              <ReactMarkdown>{data.future_outlook}</ReactMarkdown>
+            </section>
 
-          {/* 4. Variance Analysis */}
-          <section className="break-inside-avoid">
-             <h3 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white text-sm">{selectedEntity === 'Overview' ? '4' : '2'}</span>
-              การวิเคราะห์การเปลี่ยนแปลง (Variance)
-            </h3>
-            <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">รายการ (Item)</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider w-1/6">ผลกระทบ</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">บทวิเคราะห์เชิงลึก</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {currentData.anomalies.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 align-top">
-                        <div className="text-sm font-bold text-slate-800">{item.item}</div>
-                        {item.related_entity && selectedEntity === 'Overview' && (
-                          <span className="inline-block mt-1 text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded border border-slate-200">
-                            {item.related_entity}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap align-top">
-                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${
-                           item.impact === 'High' ? 'bg-rose-50 text-rose-700 border-rose-100' : 
-                           item.impact === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                           'bg-emerald-50 text-emerald-700 border-emerald-100'
-                         }`}>
-                           {item.impact}
-                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600 align-top leading-relaxed">{item.observation}</td>
-                    </tr>
-                  ))}
-                  {currentData.anomalies.length === 0 && (
-                     <tr>
-                       <td colSpan={3} className="px-6 py-8 text-center text-slate-400 italic">ไม่พบรายการผิดปกติ</td>
-                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+            <section className="mb-8">
+               <h3 className="text-lg font-bold text-indigo-800 bg-indigo-50 p-2 rounded-lg mb-4">3. วิเคราะห์รายหน่วยงาน (Entity Analysis)</h3>
+               {data.entity_insights?.map((entity, i) => (
+                 <div key={i} className="mb-6 pl-4 border-l-4 border-indigo-100">
+                    <h4 className="font-bold text-slate-800 text-md mb-2">{entity.name}</h4>
+                    <p className="text-sm text-slate-600 mb-2">{entity.summary}</p>
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                       {entity.key_metrics.filter(m => m.year === targetYear).map((m, idx) => (
+                         <div key={idx} className="flex justify-between text-xs border-b border-slate-100 pb-1">
+                            <span className="text-slate-500">{m.label}</span>
+                            <span className="font-mono font-bold">{new Intl.NumberFormat('th-TH', { notation: "compact" }).format(m.value)}</span>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               ))}
+            </section>
 
-          {/* Footer Report */}
-          <div className="mt-16 pt-8 border-t border-slate-200 flex justify-between items-center text-xs text-slate-400">
-            <div>Generated by FinSight AI</div>
-            <div>ข้อมูลเพื่อประกอบการตัดสินใจเท่านั้น</div>
+            <section className="mb-8">
+              <h3 className="text-lg font-bold text-indigo-800 bg-indigo-50 p-2 rounded-lg mb-4">4. ความเสี่ยงและข้อสังเกต (Risks & Anomalies)</h3>
+              <ul className="space-y-3">
+                {data.anomalies.map((a, i) => (
+                  <li key={i} className="flex gap-3 text-sm text-slate-700">
+                    <span className="text-rose-500 font-bold shrink-0">•</span>
+                    <span>
+                      <strong className="text-slate-900">{a.item}:</strong> {a.observation} 
+                      <span className="text-xs text-slate-400 ml-2">({a.impact} Impact)</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           </div>
-
         </div>
       )}
       
-      {/* Footer Actions (Using onReset) */}
-      <div className="text-center pt-8 pb-4 no-print">
-         <button 
-           onClick={onReset}
-           className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-full shadow-sm text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-sm font-medium"
-         >
-            <RotateCcw size={16} />
-            เริ่มการวิเคราะห์ไฟล์ใหม่
-         </button>
+      {/* Footer */}
+      <div className="text-center text-slate-400 text-xs py-8 no-print">
+        <p>FinSight AI - Financial Intelligence System</p>
       </div>
-
     </div>
   );
 };

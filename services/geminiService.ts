@@ -77,7 +77,7 @@ const analysisSchema: Schema = {
           label: { type: Type.STRING, description: "Label in Thai (e.g., สินทรัพย์รวม)" },
           value: { type: Type.NUMBER },
           unit: { type: Type.STRING, description: "Currency unit (e.g., THB)" },
-          year: { type: Type.STRING, description: "Fiscal Year (e.g., '2567', '2568'). Must be extracted." }
+          year: { type: Type.STRING, description: "Fiscal Year (e.g., '2568', '2025')." }
         },
         required: ["label", "value", "year"]
       }
@@ -129,7 +129,7 @@ const analysisSchema: Schema = {
                  label: { type: Type.STRING },
                  value: { type: Type.NUMBER },
                  unit: { type: Type.STRING },
-                 year: { type: Type.STRING, description: "Fiscal Year (e.g., '2567', '2568')." }
+                 year: { type: Type.STRING, description: "Fiscal Year (e.g., '2568', '2025')." }
                },
                required: ["label", "value", "year"]
              }
@@ -188,8 +188,8 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
       If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
       
       For 'entity_insights.key_metrics' AND 'key_metrics', you MUST:
-      1. Extract data for **ALL Available Fiscal Years** found in the document columns (e.g., 2567, 2568, 2024, 2025). 
-      2. Explicitly fill the 'year' field for every metric.
+      1. Extract data primarily for **Fiscal Year 2568 (or 2025)**. Only extract other years if 2568 is not found.
+      2. Explicitly fill the 'year' field for every metric (e.g., "2568", "2025").
       3. Try to extract and standardize these 7 specific metrics for comparison:
          - "รายได้รวม" (Total Revenue)
          - "ค่าใช้จ่ายรวม" (Total Expenses)

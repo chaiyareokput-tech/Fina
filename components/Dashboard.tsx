@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { AnalysisResult } from '../types';
+import { AnalysisResult, FinancialRatio, FinancialMetric, Anomaly } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LineChart, Line, Legend, ReferenceLine
@@ -80,12 +80,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
 
   // Derived data based on selection (Entity & Year)
   const currentData = useMemo(() => {
-    let metrics = [];
+    let metrics: FinancialMetric[] = [];
     let summary = '';
     let future = '';
     let liquidityStatus = null;
-    let anomalies = [];
-    let ratios = [];
+    let anomalies: Anomaly[] = [];
+    let ratios: FinancialRatio[] = [];
 
     if (selectedEntity === 'Overview') {
       summary = data.summary;
@@ -349,6 +349,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
           </div>
 
           <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+          <button
+            onClick={onReset}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-rose-600 border border-rose-100 rounded-xl text-sm font-medium hover:bg-rose-50 hover:shadow-sm transition-all"
+            title="เริ่มวิเคราะห์ใหม่"
+          >
+            <RotateCcw size={16} />
+          </button>
 
           <button
             onClick={() => setShowSaveDialog(true)}

@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LineChart, Line, Legend, ReferenceLine
 } from 'recharts';
-import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw, Building2, CalendarRange } from 'lucide-react';
+import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw, Building2, CalendarRange, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface DashboardProps {
@@ -20,37 +20,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
   const [viewMode, setViewMode] = useState<'dashboard' | 'report' | 'accounts'>('dashboard');
   const [selectedEntity, setSelectedEntity] = useState<string>('Overview');
   const [accountSearch, setAccountSearch] = useState('');
-  const [chartType, setChartType] = useState<'bar' | 'pie' | 'line'>('bar');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('');
+  
+  // Comparative Analysis States
   const [comparisonMetric, setComparisonMetric] = useState<string>('กำไรสุทธิ');
+  const [comparisonYear, setComparisonYear] = useState<string>('');
+  const [comparisonChartType, setComparisonChartType] = useState<'bar' | 'pie' | 'line'>('bar');
 
-  // Determine the Target Year to display (Priority: 2568 > 2025 > Latest Available)
+  // Determine the Default Target Year (Priority: 2568 > 2025 > Latest Available)
   const targetYear = useMemo(() => {
     const years = new Set<string>();
-    // Collect all available years
     data.key_metrics?.forEach(m => m.year && years.add(m.year));
     data.entity_insights?.forEach(e => e.key_metrics.forEach(m => m.year && years.add(m.year)));
     
-    // Priority Check
     if (years.has("2568")) return "2568";
     if (years.has("2025")) return "2025";
     
-    // Fallback: Sort descending and take the latest
     const sortedYears = Array.from(years).sort((a, b) => b.localeCompare(a));
     return sortedYears[0] || "";
   }, [data]);
+
+  // Get all available years for the dropdown
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    data.key_metrics?.forEach(m => m.year && years.add(m.year));
+    data.entity_insights?.forEach(e => e.key_metrics.forEach(m => m.year && years.add(m.year)));
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [data]);
+
+  // Set default comparison year on load
+  useEffect(() => {
+    if (targetYear && !comparisonYear) {
+      setComparisonYear(targetYear);
+    }
+  }, [targetYear, comparisonYear]);
 
   // Update filename based on context
   useEffect(() => {
     const dateStr = new Date().toISOString().split('T')[0];
     const prefix = viewMode === 'dashboard' ? 'Dashboard' : viewMode === 'accounts' ? 'Accounts_Insight' : 'Analysis_Report';
-    // Sanitize entity name for filename
     const entityName = selectedEntity.replace(/[^a-z0-9]/gi, '_');
     setSaveFileName(`${prefix}_${entityName}_${targetYear}_${dateStr}`);
   }, [viewMode, selectedEntity, targetYear]);
 
-  // Extract list of available entities from the data
+  // Extract list of available entities
   const availableEntities = useMemo(() => {
     const entities = ['Overview'];
     if (data.entity_insights && data.entity_insights.length > 0) {
@@ -59,15 +73,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     return entities;
   }, [data]);
 
-  // Prepare Comparative Data filtered by Target Year
+  // Prepare Comparative Data filtered by Selected Year
   const comparisonData = useMemo(() => {
     if (!data.entity_insights || data.entity_insights.length === 0) return [];
 
     return data.entity_insights.map(entity => {
-      // Find the specific metric value for this entity AND target Year
       const metric = entity.key_metrics.find(m => 
         m.label.includes(comparisonMetric) && 
-        (m.year === targetYear) // Strict year matching
+        (m.year === comparisonYear)
       );
       
       return {
@@ -76,11 +89,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         unit: metric ? metric.unit : ''
       };
     });
-  }, [data.entity_insights, comparisonMetric, targetYear]);
+  }, [data.entity_insights, comparisonMetric, comparisonYear]);
 
   // Derived data based on selection (Entity & Year)
   const currentData = useMemo(() => {
-    let metrics: FinancialMetric[] = [];
     let summary = '';
     let future = '';
     let liquidityStatus = null;
@@ -92,8 +104,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       future = data.future_outlook;
       anomalies = data.anomalies;
       ratios = data.financial_ratios;
-      // Filter metrics STRICTLY by Target Year
-      metrics = data.key_metrics.filter(m => m.year === targetYear);
     } else {
       const entityData = data.entity_insights?.find(e => e.name === selectedEntity);
       summary = entityData?.summary || "No data available for this entity.";
@@ -101,19 +111,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       anomalies = data.anomalies.filter(a => a.related_entity === selectedEntity || !a.related_entity);
       liquidityStatus = entityData?.liquidity_status;
       ratios = [];
-      // Filter entity metrics STRICTLY by Target Year
-      metrics = entityData?.key_metrics.filter(m => m.year === targetYear) || [];
     }
 
     return {
       summary,
       future,
-      metrics,
       anomalies,
       liquidityStatus,
       ratios
     };
-  }, [selectedEntity, targetYear, data]);
+  }, [selectedEntity, data]);
 
   // Filter accounts based on search
   const filteredAccounts = useMemo(() => {
@@ -126,8 +133,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
 
   const handleExportPDF = () => {
     setShowSaveDialog(false);
-    
-    // Use setTimeout to ensure the modal is fully closed before print dialog opens
     setTimeout(() => {
       const originalTitle = document.title;
       document.title = saveFileName; 
@@ -136,28 +141,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     }, 300);
   };
 
-  const renderChart = () => {
-    if (!currentData.metrics || currentData.metrics.length === 0) {
-      return (
-        <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-          <BarChart3 size={32} className="mb-2 opacity-50"/>
-          <span>ไม่มีข้อมูลตัวเลขสำหรับปี {targetYear}</span>
-        </div>
-      );
+  const renderComparisonChart = () => {
+    if (comparisonData.length === 0 || !comparisonData.some(d => d.value !== 0)) {
+       return (
+          <div className="h-full flex flex-col items-center justify-center text-slate-400">
+             <Building2 size={32} className="mb-2 opacity-50"/>
+             <span>ไม่มีข้อมูลเปรียบเทียบสำหรับปี {comparisonYear}</span>
+          </div>
+       );
     }
 
-    const chartData = currentData.metrics.map(m => ({
-      name: m.label,
-      value: m.value,
-      label: m.label
-    }));
-
-    if (chartType === 'pie') {
+    if (comparisonChartType === 'pie') {
       return (
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={chartData}
+              data={comparisonData}
               cx="50%"
               cy="50%"
               labelLine={false}
@@ -171,12 +170,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                   </text>
                 ) : null;
               }}
-              outerRadius={110}
+              outerRadius={120}
               innerRadius={60}
               dataKey="value"
               paddingAngle={2}
             >
-              {chartData.map((_, index) => (
+              {comparisonData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="white" strokeWidth={2} />
               ))}
             </Pie>
@@ -190,19 +189,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
       );
     }
 
-    if (chartType === 'line') {
+    if (comparisonChartType === 'line') {
       return (
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="label" angle={-45} textAnchor="end" height={80} interval={0} tick={{fontSize: 12, fill: '#64748b'}} />
-            <YAxis width={80} tickFormatter={(value) => new Intl.NumberFormat('en', { notation: "compact" }).format(value)} tick={{fontSize: 12, fill: '#64748b'}} />
+         <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={comparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} dy={10} />
+            <YAxis tickFormatter={(value) => new Intl.NumberFormat('en', { notation: "compact" }).format(value)} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
             <Tooltip 
               formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)}
               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
               cursor={{stroke: '#6366f1', strokeWidth: 1}}
             />
-            <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
+            <ReferenceLine y={0} stroke="#cbd5e1" />
+            <Line type="monotone" dataKey="value" name={comparisonMetric} stroke="#6366f1" strokeWidth={3} activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
           </LineChart>
         </ResponsiveContainer>
       );
@@ -211,18 +211,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     // Default Bar Chart
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={currentData.metrics} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="label" width={140} tick={{fontSize: 12, fill: '#64748b'}} />
+        <BarChart data={comparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} dy={10} />
+          <YAxis tickFormatter={(value) => new Intl.NumberFormat('en', { notation: "compact" }).format(value)} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
           <Tooltip 
             formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)}
             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-            cursor={{fill: '#f1f5f9'}}
+            cursor={{fill: '#f8fafc'}}
           />
-          <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={24}>
-            {currentData.metrics.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          <ReferenceLine y={0} stroke="#cbd5e1" />
+          <Bar dataKey="value" name={comparisonMetric} radius={[4, 4, 4, 4]} barSize={50}>
+            {comparisonData.map((entry, index) => (
+              <Cell 
+                key={`cell-${index}`} 
+                fill={entry.value < 0 ? '#ef4444' : COLORS[index % COLORS.length]} 
+              />
             ))}
           </Bar>
         </BarChart>
@@ -319,7 +323,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
             </div>
           )}
 
-          {/* Year Indicator (Static) */}
+          {/* Year Indicator (Static) - Only for summary view context */}
            <div className="relative px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-sm font-bold text-indigo-700 flex items-center gap-2 shadow-sm">
               <CalendarRange size={16} />
               <span>ปี {targetYear}</span>
@@ -429,111 +433,91 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
              )}
           </div>
           
-          {/* Comparative Analysis (NEW SECTION) - Only show on Overview */}
+          {/* Comparative Analysis (Enhanced) - Only show on Overview */}
           {selectedEntity === 'Overview' && data.entity_insights && data.entity_insights.length > 1 && (
             <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid print:shadow-none print:border print:mb-6">
-              <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+              <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-violet-50 rounded-lg text-violet-600">
                      <Building2 size={20} />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-slate-800">การเปรียบเทียบระหว่างหน่วยงาน</h3>
-                    <p className="text-xs text-slate-500">ข้อมูลปี {targetYear}</p>
+                    <p className="text-xs text-slate-500">Comparative Analysis</p>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                  <Filter size={14} className="text-slate-400 ml-1" />
-                  <select 
-                    value={comparisonMetric}
-                    onChange={(e) => setComparisonMetric(e.target.value)}
-                    className="bg-transparent text-sm text-slate-700 font-medium focus:outline-none cursor-pointer pr-2"
-                  >
-                    <option value="กำไรสุทธิ">กำไรสุทธิ (Net Profit)</option>
-                    <option value="รายได้รวม">รายได้รวม (Total Revenue)</option>
-                    <option value="ค่าใช้จ่ายรวม">ค่าใช้จ่ายรวม (Total Expenses)</option>
-                    <option value="กำไรขั้นต้น">กำไรขั้นต้น (Gross Profit)</option>
-                    <option value="EBITDA">EBITDA</option>
-                    <option value="สินทรัพย์รวม">สินทรัพย์รวม (Total Assets)</option>
-                    <option value="หนี้สินรวม">หนี้สินรวม (Total Liabilities)</option>
-                  </select>
+                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                   
+                   {/* Chart Type Selector */}
+                   <div className="flex bg-slate-100 rounded-lg p-1 gap-1 no-print order-3 sm:order-1">
+                      <button onClick={() => setComparisonChartType('bar')} className={`p-1.5 rounded-md transition-all ${comparisonChartType === 'bar' ? 'bg-white shadow text-violet-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <BarChart3 size={16} />
+                      </button>
+                      <button onClick={() => setComparisonChartType('pie')} className={`p-1.5 rounded-md transition-all ${comparisonChartType === 'pie' ? 'bg-white shadow text-violet-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <PieIcon size={16} />
+                      </button>
+                      <button onClick={() => setComparisonChartType('line')} className={`p-1.5 rounded-md transition-all ${comparisonChartType === 'line' ? 'bg-white shadow text-violet-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <LineChartIcon size={16} />
+                      </button>
+                   </div>
+
+                   {/* Year Selector */}
+                   <div className="relative group order-1 sm:order-2 flex-grow sm:flex-grow-0">
+                      <CalendarRange size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <select 
+                        value={comparisonYear}
+                        onChange={(e) => setComparisonYear(e.target.value)}
+                        className="w-full sm:w-auto pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none cursor-pointer hover:border-violet-300 transition-all"
+                      >
+                        {availableYears.map(year => (
+                           <option key={year} value={year}>ปี {year}</option>
+                        ))}
+                      </select>
+                   </div>
+
+                   {/* Metric Selector */}
+                   <div className="relative group order-2 sm:order-3 flex-grow sm:flex-grow-0">
+                    <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <select 
+                      value={comparisonMetric}
+                      onChange={(e) => setComparisonMetric(e.target.value)}
+                      className="w-full sm:w-auto pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none cursor-pointer hover:border-violet-300 transition-all appearance-none"
+                    >
+                      <option value="กำไรสุทธิ">กำไรสุทธิ (Net Profit)</option>
+                      <option value="รายได้รวม">รายได้รวม (Total Revenue)</option>
+                      <option value="ค่าใช้จ่ายรวม">ค่าใช้จ่ายรวม (Total Expenses)</option>
+                      <option value="กำไรขั้นต้น">กำไรขั้นต้น (Gross Profit)</option>
+                      <option value="EBITDA">EBITDA</option>
+                      <option value="สินทรัพย์รวม">สินทรัพย์รวม (Total Assets)</option>
+                      <option value="หนี้สินรวม">หนี้สินรวม (Total Liabilities)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div className="h-[350px]">
-                {comparisonData.length > 0 && comparisonData.some(d => d.value !== 0) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={comparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} dy={10} />
-                      <YAxis tickFormatter={(value) => new Intl.NumberFormat('en', { notation: "compact" }).format(value)} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
-                      <Tooltip 
-                        formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                        cursor={{fill: '#f8fafc'}}
-                      />
-                      <ReferenceLine y={0} stroke="#cbd5e1" />
-                      <Bar dataKey="value" name={comparisonMetric} radius={[4, 4, 4, 4]} barSize={50}>
-                        {comparisonData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.value < 0 ? '#ef4444' : COLORS[index % COLORS.length]} 
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                      <Building2 size={32} className="mb-2 opacity-50"/>
-                      <span>ไม่มีข้อมูลเปรียบเทียบสำหรับปี {targetYear}</span>
-                   </div>
-                )}
+              <div className="h-[400px]">
+                {renderComparisonChart()}
               </div>
             </div>
           )}
 
-          {/* Key Metrics Chart - SINGLE YEAR VIEW */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid flex flex-col h-[450px] print:h-[500px] print:shadow-none print:border print:mb-6">
-             <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
-                     <BarChart3 size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน ({selectedEntity})</h3>
-                    <p className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full w-fit">ปี {targetYear}</p>
-                  </div>
-                </div>
-                
-                <div className="flex bg-slate-100 rounded-lg p-1 gap-1 no-print">
-                  <button onClick={() => setChartType('bar')} className={`p-1.5 rounded-md transition-all ${chartType === 'bar' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    <BarChart3 size={18} />
-                  </button>
-                  <button onClick={() => setChartType('pie')} className={`p-1.5 rounded-md transition-all ${chartType === 'pie' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    <PieIcon size={18} />
-                  </button>
-                  <button onClick={() => setChartType('line')} className={`p-1.5 rounded-md transition-all ${chartType === 'line' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    <LineChartIcon size={18} />
-                  </button>
-                </div>
-            </div>
-            <div className="flex-1 min-h-0">
-              {renderChart()}
-            </div>
-          </div>
+          {/* Key Metrics Chart - REMOVED AS REQUESTED */}
 
           {/* Financial Ratios */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 flex flex-col break-inside-avoid print:shadow-none print:border print:mb-6">
+          <div className="lg:col-span-3 xl:col-span-1 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 flex flex-col break-inside-avoid print:shadow-none print:border print:mb-6">
              <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
                   <PieIcon size={20} />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800">อัตราส่วนทางการเงิน</h3>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">อัตราส่วนทางการเงิน</h3>
+                  <p className="text-xs text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full w-fit mt-1">ปี {targetYear}</p>
+                </div>
              </div>
              
-             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1">
+             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 max-h-[500px]">
                 {currentData.ratios && currentData.ratios.length > 0 ? (
                   currentData.ratios.map((ratio, index) => (
                     <div key={index} className="p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-colors">
@@ -562,7 +546,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
           </div>
 
           {/* Anomalies / Variances */}
-          <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid print:shadow-none print:border">
+          <div className="lg:col-span-3 xl:col-span-2 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid print:shadow-none print:border">
              <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
                   <Activity size={20} />
@@ -575,10 +559,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
              
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {currentData.anomalies && currentData.anomalies.length > 0 ? (
-                 // Use logic to slice top 5 (Logic is already in the parent memo, but we need to re-apply filtering here based on currentData context or reuse existing Logic)
-                 // Since currentData.anomalies is already filtered by Entity, we just sort and slice here for display
                  [...currentData.anomalies]
-                  .sort((a, b) => (b.impact === 'High' ? 1 : 0) - (a.impact === 'High' ? 1 : 0)) // Simple sort High first
+                  .sort((a, b) => (b.impact === 'High' ? 1 : 0) - (a.impact === 'High' ? 1 : 0)) 
                   .slice(0, 5)
                   .map((anomaly, index) => (
                    <div key={index} className="p-4 rounded-xl border-l-4 border-rose-400 bg-rose-50/30 hover:bg-rose-50 transition-colors">

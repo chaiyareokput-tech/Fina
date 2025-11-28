@@ -1,12 +1,11 @@
-
 import React, { useState, useMemo } from 'react';
 import { AnalysisResult, FinancialRatio, FinancialMetric, Anomaly } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, LineChart, Line, Legend, ReferenceLine
+  PieChart, Pie, LineChart, Line, Legend
 } from 'recharts';
 import { 
-  AlertCircle, CheckCircle, TrendingUp, TrendingDown, PieChart as PieIcon, 
+  AlertCircle, TrendingUp, PieChart as PieIcon, 
   Activity, FileText, LayoutDashboard, Filter, LineChart as LineChartIcon, 
   BarChart3, RotateCcw, Building2, CalendarRange, ArrowUp, ArrowDown 
 } from 'lucide-react';
@@ -239,8 +238,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                                 formatter={(value: number) => [new Intl.NumberFormat('th-TH').format(value), comparisonMetric]}
                             />
                             <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                                {comparativeData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.value >= 0 ? COLORS[index % COLORS.length] : '#ef4444'} />
+                                {comparativeData.map((_entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={_entry.value >= 0 ? COLORS[index % COLORS.length] : '#ef4444'} />
                                 ))}
                             </Bar>
                         </BarChart>
@@ -253,7 +252,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                                 paddingAngle={5}
                                 dataKey="value"
                              >
-                                {comparativeData.map((entry, index) => (
+                                {comparativeData.map((_entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                              </Pie>

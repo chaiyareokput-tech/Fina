@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LineChart, Line, Legend
 } from 'recharts';
-import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle, TrendingUp, PieChart as PieIcon, Activity, FileText, LayoutDashboard, Download, Filter, List, Search, LineChart as LineChartIcon, BarChart3, Save, X, Briefcase, RotateCcw, Building2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface DashboardProps {
@@ -23,6 +23,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
   const [chartType, setChartType] = useState<'bar' | 'pie' | 'line'>('bar');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('');
+  const [comparisonMetric, setComparisonMetric] = useState<string>('รายได้รวม');
 
   // Update filename based on context
   useEffect(() => {
@@ -41,6 +42,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     }
     return entities;
   }, [data]);
+
+  // Prepare Comparative Data
+  const comparisonData = useMemo(() => {
+    if (!data.entity_insights || data.entity_insights.length === 0) return [];
+
+    return data.entity_insights.map(entity => {
+      // Find the specific metric value for this entity
+      const metric = entity.key_metrics.find(m => m.label.includes(comparisonMetric));
+      return {
+        name: entity.name,
+        value: metric ? metric.value : 0,
+        unit: metric ? metric.unit : ''
+      };
+    }).filter(item => item.value > 0); // Only show positive values to avoid empty bars
+  }, [data.entity_insights, comparisonMetric]);
 
   // Derived data based on selection
   const currentData = useMemo(() => {
@@ -340,7 +356,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                  <span className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm ${
                    currentData.liquidityStatus === 'Good' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                    currentData.liquidityStatus === 'Poor' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                   'bg-amber-50 text-amber-700 border border-amber-100'
+                   'bg-amber-50 text-amber-700 border-amber-100'
                  }`}>
                    {currentData.liquidityStatus === 'Good' ? <CheckCircle size={16}/> : <AlertCircle size={16}/>}
                    สภาพคล่อง: {currentData.liquidityStatus}
@@ -362,6 +378,65 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                </div>
              )}
           </div>
+          
+          {/* Comparative Analysis (NEW SECTION) - Only show on Overview */}
+          {selectedEntity === 'Overview' && data.entity_insights && data.entity_insights.length > 1 && (
+            <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid print:shadow-none print:border print:mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-violet-50 rounded-lg text-violet-600">
+                     <Building2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800">การเปรียบเทียบระหว่างหน่วยงาน</h3>
+                    <p className="text-xs text-slate-500">Comparative Entity Analysis</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                  <Filter size={14} className="text-slate-400 ml-1" />
+                  <select 
+                    value={comparisonMetric}
+                    onChange={(e) => setComparisonMetric(e.target.value)}
+                    className="bg-transparent text-sm text-slate-700 font-medium focus:outline-none cursor-pointer pr-2"
+                  >
+                    <option value="รายได้รวม">รายได้รวม (Total Revenue)</option>
+                    <option value="ค่าใช้จ่ายรวม">ค่าใช้จ่ายรวม (Total Expenses)</option>
+                    <option value="กำไรสุทธิ">กำไรสุทธิ (Net Profit)</option>
+                    <option value="สินทรัพย์รวม">สินทรัพย์รวม (Total Assets)</option>
+                    <option value="หนี้สินรวม">หนี้สินรวม (Total Liabilities)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="h-[350px]">
+                {comparisonData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={comparisonData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} dy={10} />
+                      <YAxis tickFormatter={(value) => new Intl.NumberFormat('en', { notation: "compact" }).format(value)} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} />
+                      <Tooltip 
+                        formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        cursor={{fill: '#f8fafc'}}
+                      />
+                      <Bar dataKey="value" name={comparisonMetric} radius={[8, 8, 0, 0]} barSize={50}>
+                        {comparisonData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                   <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                      <Building2 size={32} className="mb-2 opacity-50"/>
+                      <span>ไม่มีข้อมูลเปรียบเทียบสำหรับตัวชี้วัดนี้</span>
+                   </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Key Metrics Chart */}
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm shadow-slate-200 border border-slate-100 break-inside-avoid flex flex-col h-[450px] print:h-[500px] print:shadow-none print:border print:mb-6">
@@ -370,7 +445,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                   <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
                      <BarChart3 size={20} />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน</h3>
+                  <h3 className="text-lg font-bold text-slate-800">ตัวเลขทางการเงิน ({selectedEntity})</h3>
                 </div>
                 
                 <div className="flex bg-slate-100 rounded-lg p-1 gap-1 no-print">

@@ -178,16 +178,42 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
     const model = "gemini-2.5-flash";
     
     const promptText = `
-      Analyze this financial document as a Senior CPA.
-      Focus: Variance Analysis, Entity Analysis, Future Outlook.
-      Language: Thai (ภาษาไทย).
+      Act as a World-Class Chief Financial Officer (CFO) and Investment Analyst.
+      Your task is to provide a deep, critical, and strategic analysis of this financial document in Thai (ภาษาไทย).
+
+      **IMPORTANT: Comparative Analysis Instruction**
+      If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
       
-      Tasks:
-      1. **Consolidated View:** Analyze significant changes, liquidity, and profitability.
-      2. **Future Outlook:** Predict financial trends and risks.
-      3. **Ratios:** Calculate Liquidity, Profitability (Net Margin), Efficiency (Asset Turnover), Leverage (D/E).
-      4. **Entity Breakdown:** If distinct departments/entities exist (e.g., "BusA"), separate their insights.
-      5. **Anomalies:** Detect unusual high/low items.
+      For 'entity_insights.key_metrics', you MUST try to extract and standardize these 5 specific metrics for EVERY entity to allow for comparison graphs:
+      1. "รายได้รวม" (Total Revenue)
+      2. "ค่าใช้จ่ายรวม" (Total Expenses)
+      3. "กำไรสุทธิ" (Net Profit)
+      4. "สินทรัพย์รวม" (Total Assets)
+      5. "หนี้สินรวม" (Total Liabilities)
+      *Use exactly these Thai labels in the key_metrics for consistency.*
+
+      **Specific Analysis Instructions:**
+
+      1. **Executive Summary (Deep Dive):**
+         - Synthesize the relationship between Profitability, Liquidity, and Solvency.
+         - Evaluate the "Quality of Earnings" (e.g., are profits backed by operating cash flow?).
+         - Identify the single most critical narrative driving these financial results.
+
+      2. **Future Outlook & Strategy:**
+         - Based on current trends, predict the financial trajectory for the next 6-12 months.
+         - Identify specific internal/external risks (market, operational, financial).
+         - Provide 3 concrete, high-level STRATEGIC RECOMMENDATIONS to improve financial health.
+
+      3. **Variance & Anomalies:**
+         - Look beyond just large % changes. Identify "Red Flags" or unusual patterns that might indicate operational issues, inefficiency, or accounting anomalies.
+         - Explain the *potential cause* and *business impact* of these anomalies.
+
+      4. **Entity/Department Analysis:**
+         - If distinct departments/entities exist compare their performance (Benchmarking). Which one is the cash cow? Which one is a drain?
+
+      5. **Ratios:**
+         - Calculate Liquidity, Profitability (Net Margin), Efficiency (Asset Turnover), Leverage (D/E).
+         - Rate them honestly as Good/Average/Poor based on general industry standards.
 
       Extract all data into the defined JSON schema.
     `;
@@ -229,8 +255,7 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
       config: {
         responseMimeType: "application/json",
         responseSchema: analysisSchema,
-        temperature: 0.2,
-        // Optimization: Disable thinking for faster response on 2.5-flash
+        temperature: 0.3, // Slightly increased for more insightful/creative reasoning while keeping format strict
         thinkingConfig: { thinkingBudget: 0 }
       }
     });

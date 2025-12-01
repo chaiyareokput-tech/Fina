@@ -187,8 +187,15 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
       **Core Focus: Financial Ratio Analysis**
       You must calculate and interpret key financial ratios with precision. Explain what these ratios indicate about the company's health regarding Liquidity, Profitability, Efficiency, and Leverage. Provide deep insights into *why* the ratios are at these levels based on the data provided.
 
-      **IMPORTANT: Comparative Analysis Instruction**
-      If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
+      **IMPORTANT: Entity & Branch Extraction Rules**
+      You must carefully identify and separate data for distinct operational units.
+      **PRIMARY KEYWORDS to look for in identifying Entities:**
+      1. **"H" Codes**: (e.g., H.1, H.2, H.1.2) - often used for departments or cost centers.
+      2. **"กฟส."**: (e.g., กฟส.เชียงใหม่, กฟส.ม.) - Provincial Electricity Authority (PEA) branches.
+      3. **"การไฟฟ้า"**: (e.g., การไฟฟ้าเขต 1, การไฟฟ้าส่วนภูมิภาค) - Electricity Areas/Authorities.
+
+      When populating 'entity_insights', create a separate entry for EACH unique unit found that matches these patterns. 
+      Do NOT aggregate them into "Overall" unless explicitly stated. Ensure the 'name' field clearly identifies the branch or code (e.g., "กฟส.แม่ริม").
       
       For 'entity_insights.key_metrics' AND 'key_metrics', you MUST:
       1. Extract data primarily for **Fiscal Year 2568 (or 2025)**. Only extract other years if 2568 is not found.
@@ -218,8 +225,9 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
          - Look beyond just large % changes. Identify "Red Flags" or unusual patterns that might indicate operational issues, inefficiency, or accounting anomalies.
          - Explain the *potential cause* and *business impact* of these anomalies.
 
-      4. **Entity/Department Analysis:**
-         - If distinct departments/entities exist compare their performance (Benchmarking). Which one is the cash cow? Which one is a drain?
+      4. **Entity/Department Analysis (Benchmarking):**
+         - Use the extracted entities (H, กฟส, การไฟฟ้า) to compare performance.
+         - Which branch/unit is the most profitable? Which has the highest cost?
 
       5. **Ratios (Critical Priority):**
          - Calculate Liquidity, Profitability (Net Margin), Efficiency (Asset Turnover), Leverage (D/E).

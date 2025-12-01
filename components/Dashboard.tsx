@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { AnalysisResult, FinancialRatio, FinancialMetric, Anomaly } from '../types';
 import { 
@@ -7,7 +8,7 @@ import {
 import { 
   AlertCircle, TrendingUp, PieChart as PieIcon, 
   Activity, FileText, LayoutDashboard, Filter, LineChart as LineChartIcon, 
-  BarChart3, RotateCcw, Building2, CalendarRange, ArrowUp, ArrowDown, Search 
+  BarChart3, RotateCcw, Building2, CalendarRange, ArrowUp, ArrowDown, MapPin
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -27,7 +28,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
   const [comparisonYear, setComparisonYear] = useState<string>('');
   const [comparisonChartType, setComparisonChartType] = useState<'bar' | 'pie' | 'line'>('bar');
   const [comparisonSortOrder, setComparisonSortOrder] = useState<'highest' | 'lowest'>('highest');
-  const [entityFilter, setEntityFilter] = useState<string>('');
+  const [selectedEntity, setSelectedEntity] = useState<string>('All');
 
   // Financial Ratio Sort State
   const [ratioSortOrder, setRatioSortOrder] = useState<'highest' | 'lowest'>('highest');
@@ -51,7 +52,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     }
   }, [availableYears, comparisonYear]);
 
-  // 2. Prepare Comparative Data (Top 10 Logic)
+  // 2. Extract Entity List for Dropdown
+  const entityOptions = useMemo(() => {
+    if (!data.entity_insights) return [];
+    // Sort primarily by those matching H or กฟส patterns
+    return data.entity_insights
+        .map(e => e.name)
+        .sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  // 3. Prepare Comparative Data (Top 10 Logic)
   const comparativeData = useMemo(() => {
     const targetYear = comparisonYear;
     let result: { name: string; value: number }[] = [];
@@ -75,11 +85,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         });
     }
 
-    // 2.1 Filter by Name (Entity Filter)
-    if (entityFilter.trim()) {
-      result = result.filter(item => 
-        item.name.toLowerCase().includes(entityFilter.toLowerCase())
-      );
+    // 2.1 Filter by Selected Entity
+    if (selectedEntity !== 'All') {
+      result = result.filter(item => item.name === selectedEntity);
     }
 
     // 2.2 Sort based on order
@@ -89,12 +97,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         : a.value - b.value;
     });
 
-    // 2.3 Limit to Top 10
-    return result.slice(0, 10);
+    // 2.3 Limit to Top 10 (only if All is selected)
+    if (selectedEntity === 'All') {
+        return result.slice(0, 10);
+    }
+    return result;
 
-  }, [data, comparisonMetric, comparisonYear, comparisonSortOrder, entityFilter]);
+  }, [data, comparisonMetric, comparisonYear, comparisonSortOrder, selectedEntity]);
 
-  // 3. Prepare Ratios (Top 5 Highest/Lowest)
+  // 4. Selected Entity Detail Logic
+  const selectedEntityDetails = useMemo(() => {
+    if (selectedEntity === 'All') return null;
+    return data.entity_insights?.find(e => e.name === selectedEntity);
+  }, [data, selectedEntity]);
+
+  // 5. Prepare Ratios (Top 5 Highest/Lowest)
   const ratios: FinancialRatio[] = useMemo(() => {
     if (!data.financial_ratios) return [];
     
@@ -105,7 +122,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     return sorted.slice(0, 5);
   }, [data, ratioSortOrder]);
 
-  // 4. Prepare Anomalies (Top 5 High Impact)
+  // 6. Prepare Anomalies (Top 5 High Impact)
   const anomalies: Anomaly[] = useMemo(() => {
      if (!data.anomalies) return [];
      
@@ -201,23 +218,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                         เปรียบเทียบผลการดำเนินงาน
                     </h3>
                     <p className="text-slate-500 text-sm mt-1">
-                      แสดงข้อมูล {comparisonSortOrder === 'highest' ? '10 อันดับสูงสุด' : '10 อันดับต่ำสุด'} ของหน่วยงาน
+                      {selectedEntity === 'All' 
+                        ? `แสดงข้อมูล ${comparisonSortOrder === 'highest' ? '10 อันดับสูงสุด' : '10 อันดับต่ำสุด'} ของหน่วยงาน` 
+                        : `แสดงข้อมูลเฉพาะ: ${selectedEntity}`}
                     </p>
                   </div>
                   
                   {/* Filters Toolbar */}
                   <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                      
-                     {/* Search Entity Filter */}
+                     {/* Entity Dropdown Selector */}
                      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200 w-full sm:w-auto">
-                        <Search size={14} className="text-slate-400"/>
-                        <input 
-                           type="text"
-                           placeholder="กรองชื่อหน่วยงาน..."
-                           value={entityFilter}
-                           onChange={(e) => setEntityFilter(e.target.value)}
-                           className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none w-full sm:w-32 placeholder:text-slate-400"
-                        />
+                        <MapPin size={14} className="text-slate-400"/>
+                        <select 
+                           value={selectedEntity}
+                           onChange={(e) => setSelectedEntity(e.target.value)}
+                           className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none w-full sm:w-48 cursor-pointer"
+                        >
+                           <option value="All">ภาพรวมทั้งหมด (All Entities)</option>
+                           <option disabled>──────────</option>
+                           {entityOptions.map((entity, idx) => (
+                             <option key={idx} value={entity}>{entity}</option>
+                           ))}
+                        </select>
                      </div>
 
                      <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
@@ -251,23 +274,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                         </select>
                      </div>
 
-                     {/* Sort Toggle */}
-                     <div className="flex bg-slate-100 p-1 rounded-lg">
-                        <button 
-                          onClick={() => setComparisonSortOrder('highest')} 
-                          className={`p-1.5 rounded transition-all ${comparisonSortOrder === 'highest' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
-                          title="10 อันดับสูงสุด"
-                        >
-                          <ArrowUp size={16}/>
-                        </button>
-                        <button 
-                          onClick={() => setComparisonSortOrder('lowest')} 
-                          className={`p-1.5 rounded transition-all ${comparisonSortOrder === 'lowest' ? 'bg-white shadow text-rose-600' : 'text-slate-400 hover:text-slate-600'}`}
-                          title="10 อันดับต่ำสุด"
-                        >
-                          <ArrowDown size={16}/>
-                        </button>
-                     </div>
+                     {/* Sort Toggle (Disable if single entity selected) */}
+                     {selectedEntity === 'All' && (
+                       <div className="flex bg-slate-100 p-1 rounded-lg">
+                          <button 
+                            onClick={() => setComparisonSortOrder('highest')} 
+                            className={`p-1.5 rounded transition-all ${comparisonSortOrder === 'highest' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                            title="10 อันดับสูงสุด"
+                          >
+                            <ArrowUp size={16}/>
+                          </button>
+                          <button 
+                            onClick={() => setComparisonSortOrder('lowest')} 
+                            className={`p-1.5 rounded transition-all ${comparisonSortOrder === 'lowest' ? 'bg-white shadow text-rose-600' : 'text-slate-400 hover:text-slate-600'}`}
+                            title="10 อันดับต่ำสุด"
+                          >
+                            <ArrowDown size={16}/>
+                          </button>
+                       </div>
+                     )}
 
                      {/* Chart Type Toggle */}
                      <div className="flex bg-slate-100 p-1 rounded-lg hidden sm:flex">
@@ -345,6 +370,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                   )}
                </div>
             </div>
+            
+            {/* NEW: Entity Specific Detail Card */}
+            {selectedEntityDetails && (
+              <div className="lg:col-span-3 bg-indigo-50 border border-indigo-100 p-6 rounded-2xl shadow-sm animate-fade-in-up">
+                 <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-white rounded-lg text-indigo-600 shadow-sm">
+                       <MapPin size={24} />
+                    </div>
+                    <div>
+                       <h3 className="text-lg font-bold text-indigo-900">ข้อมูลเจาะลึก: {selectedEntityDetails.name}</h3>
+                       <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
+                          selectedEntityDetails.liquidity_status === 'Good' ? 'bg-green-100 text-green-700 border-green-200' :
+                          selectedEntityDetails.liquidity_status === 'Average' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                          'bg-red-100 text-red-700 border-red-200'
+                       }`}>
+                          สถานะสภาพคล่อง: {selectedEntityDetails.liquidity_status}
+                       </span>
+                    </div>
+                 </div>
+                 <p className="text-slate-700 text-sm mb-6 leading-relaxed bg-white/50 p-4 rounded-xl border border-indigo-100/50">
+                    {selectedEntityDetails.summary}
+                 </p>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {selectedEntityDetails.key_metrics
+                        .filter(m => m.year === comparisonYear)
+                        .map((metric, idx) => (
+                        <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                           <p className="text-xs text-slate-500 mb-1">{metric.label}</p>
+                           <p className="text-lg font-bold text-slate-800">
+                              {new Intl.NumberFormat('th-TH').format(metric.value)} <span className="text-xs font-normal text-slate-400">{metric.unit}</span>
+                           </p>
+                        </div>
+                    ))}
+                 </div>
+              </div>
+            )}
 
             {/* Financial Ratios */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">

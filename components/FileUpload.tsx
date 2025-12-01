@@ -153,13 +153,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, isLoading,
                 </div>
                 
                 <div className="space-y-2">
-                  <h3 className="text-xl font-bold text-slate-800 animate-pulse">กำลังดำเนินการวิเคราะห์ข้อมูล...</h3>
-                  <p className="text-slate-500 text-sm">ระบบ AI กำลังตรวจสอบและประมวลผลรายการในเอกสารอย่างละเอียด กรุณารอสักครู่</p>
+                  <h3 className="text-xl font-bold text-slate-800 animate-pulse">น้องแมว AI กำลังวิ่งอ่านงบ...</h3>
+                  <p className="text-slate-500 text-sm">กำลังวิเคราะห์ข้อมูลทางการเงินด้วยความเร็วแสง</p>
                 </div>
                 
                 <div className="relative pt-4 px-8">
                   <div className="flex justify-between text-xs font-bold text-pink-500 mb-2">
-                    <span>Processing Status...</span>
+                    <span>Meow Processing...</span>
                     <span>{progress}%</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden shadow-inner border border-slate-100">

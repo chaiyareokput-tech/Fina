@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { AnalysisResult, FinancialRatio, FinancialMetric, Anomaly } from '../types';
 import { 
@@ -8,7 +7,7 @@ import {
 import { 
   AlertCircle, TrendingUp, PieChart as PieIcon, 
   Activity, FileText, LayoutDashboard, Filter, LineChart as LineChartIcon, 
-  BarChart3, RotateCcw, Building2, CalendarRange, ArrowUp, ArrowDown, MapPin
+  BarChart3, RotateCcw, Building2, CalendarRange, ArrowUp, ArrowDown 
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -18,7 +17,7 @@ interface DashboardProps {
   onReset: () => void;
 }
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#84cc16'];
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset }) => {
   const [viewMode, setViewMode] = useState<'dashboard' | 'report' | 'accounts'>('dashboard');
@@ -27,8 +26,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
   const [comparisonMetric, setComparisonMetric] = useState<string>('กำไรสุทธิ');
   const [comparisonYear, setComparisonYear] = useState<string>('');
   const [comparisonChartType, setComparisonChartType] = useState<'bar' | 'pie' | 'line'>('bar');
-  const [comparisonSortOrder, setComparisonSortOrder] = useState<'highest' | 'lowest'>('highest');
-  const [selectedEntity, setSelectedEntity] = useState<string>('All');
 
   // Financial Ratio Sort State
   const [ratioSortOrder, setRatioSortOrder] = useState<'highest' | 'lowest'>('highest');
@@ -52,19 +49,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     }
   }, [availableYears, comparisonYear]);
 
-  // 2. Extract Entity List for Dropdown
-  const entityOptions = useMemo(() => {
-    if (!data.entity_insights) return [];
-    // Sort primarily by those matching H or กฟส patterns
-    return data.entity_insights
-        .map(e => e.name)
-        .sort((a, b) => a.localeCompare(b));
-  }, [data]);
-
-  // 3. Prepare Comparative Data (Top 10 Logic)
+  // 2. Prepare Comparative Data
   const comparativeData = useMemo(() => {
     const targetYear = comparisonYear;
-    let result: { name: string; value: number }[] = [];
+    const result: { name: string; value: number }[] = [];
 
     // Helper to find metric value
     const findValue = (metrics: FinancialMetric[] | undefined) => {
@@ -75,8 +63,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         return metric ? metric.value : 0;
     };
 
-    // Note: We intentionally exclude "Overall" (ภาพรวม) from Top 10 ranking to compare entities fairly
-    
+    // Add Overall (if available)
+    if (data.key_metrics) {
+       const val = findValue(data.key_metrics);
+       if (val !== 0) result.push({ name: 'ภาพรวม (Overview)', value: val });
+    }
+
     // Add Entities
     if (data.entity_insights) {
         data.entity_insights.forEach(entity => {
@@ -85,33 +77,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
         });
     }
 
-    // 2.1 Filter by Selected Entity
-    if (selectedEntity !== 'All') {
-      result = result.filter(item => item.name === selectedEntity);
-    }
-
-    // 2.2 Sort based on order
-    result.sort((a, b) => {
-      return comparisonSortOrder === 'highest' 
-        ? b.value - a.value 
-        : a.value - b.value;
-    });
-
-    // 2.3 Limit to Top 10 (only if All is selected)
-    if (selectedEntity === 'All') {
-        return result.slice(0, 10);
-    }
     return result;
+  }, [data, comparisonMetric, comparisonYear]);
 
-  }, [data, comparisonMetric, comparisonYear, comparisonSortOrder, selectedEntity]);
-
-  // 4. Selected Entity Detail Logic
-  const selectedEntityDetails = useMemo(() => {
-    if (selectedEntity === 'All') return null;
-    return data.entity_insights?.find(e => e.name === selectedEntity);
-  }, [data, selectedEntity]);
-
-  // 5. Prepare Ratios (Top 5 Highest/Lowest)
+  // 3. Prepare Ratios (Top 5 Highest/Lowest) - FIX: Explicitly typed
   const ratios: FinancialRatio[] = useMemo(() => {
     if (!data.financial_ratios) return [];
     
@@ -122,7 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
     return sorted.slice(0, 5);
   }, [data, ratioSortOrder]);
 
-  // 6. Prepare Anomalies (Top 5 High Impact)
+  // 4. Prepare Anomalies (Top 5 High Impact)
   const anomalies: Anomaly[] = useMemo(() => {
      if (!data.anomalies) return [];
      
@@ -211,47 +180,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
           {/* Comparative Analysis Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-               <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                         <Building2 className="text-indigo-500" size={20}/>
-                        เปรียบเทียบผลการดำเนินงาน
+                        การเปรียบเทียบผลการดำเนินงาน
                     </h3>
-                    <p className="text-slate-500 text-sm mt-1">
-                      {selectedEntity === 'All' 
-                        ? `แสดงข้อมูล ${comparisonSortOrder === 'highest' ? '10 อันดับสูงสุด' : '10 อันดับต่ำสุด'} ของหน่วยงาน` 
-                        : `แสดงข้อมูลเฉพาะ: ${selectedEntity}`}
-                    </p>
+                    <p className="text-slate-500 text-sm">เปรียบเทียบตัวเลขสำคัญระหว่างหน่วยงาน/สาขา</p>
                   </div>
                   
-                  {/* Filters Toolbar */}
-                  <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                     
-                     {/* Entity Dropdown Selector */}
-                     <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200 w-full sm:w-auto">
-                        <MapPin size={14} className="text-slate-400"/>
+                  {/* Filters */}
+                  <div className="flex flex-wrap gap-2">
+                     <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                        <CalendarRange size={14} className="text-slate-400"/>
                         <select 
-                           value={selectedEntity}
-                           onChange={(e) => setSelectedEntity(e.target.value)}
-                           className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none w-full sm:w-48 cursor-pointer"
+                            value={comparisonYear} 
+                            onChange={(e) => setComparisonYear(e.target.value)}
+                            className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none"
                         >
-                           <option value="All">ภาพรวมทั้งหมด (All Entities)</option>
-                           <option disabled>──────────</option>
-                           {entityOptions.map((entity, idx) => (
-                             <option key={idx} value={entity}>{entity}</option>
-                           ))}
+                            {availableYears.map(y => <option key={y} value={y}>ปี {y}</option>)}
                         </select>
                      </div>
 
-                     <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
-
-                     {/* Metric Selector */}
                      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
                         <Filter size={14} className="text-slate-400"/>
                         <select 
                             value={comparisonMetric} 
                             onChange={(e) => setComparisonMetric(e.target.value)}
-                            className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
+                            className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none"
                         >
                             <option value="รายได้รวม">รายได้รวม</option>
                             <option value="ค่าใช้จ่ายรวม">ค่าใช้จ่ายรวม</option>
@@ -262,150 +218,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, fileName, onReset })
                         </select>
                      </div>
 
-                     {/* Year Selector */}
-                     <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                        <CalendarRange size={14} className="text-slate-400"/>
-                        <select 
-                            value={comparisonYear} 
-                            onChange={(e) => setComparisonYear(e.target.value)}
-                            className="bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
-                        >
-                            {availableYears.map(y => <option key={y} value={y}>ปี {y}</option>)}
-                        </select>
-                     </div>
-
-                     {/* Sort Toggle (Disable if single entity selected) */}
-                     {selectedEntity === 'All' && (
-                       <div className="flex bg-slate-100 p-1 rounded-lg">
-                          <button 
-                            onClick={() => setComparisonSortOrder('highest')} 
-                            className={`p-1.5 rounded transition-all ${comparisonSortOrder === 'highest' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
-                            title="10 อันดับสูงสุด"
-                          >
-                            <ArrowUp size={16}/>
-                          </button>
-                          <button 
-                            onClick={() => setComparisonSortOrder('lowest')} 
-                            className={`p-1.5 rounded transition-all ${comparisonSortOrder === 'lowest' ? 'bg-white shadow text-rose-600' : 'text-slate-400 hover:text-slate-600'}`}
-                            title="10 อันดับต่ำสุด"
-                          >
-                            <ArrowDown size={16}/>
-                          </button>
-                       </div>
-                     )}
-
-                     {/* Chart Type Toggle */}
-                     <div className="flex bg-slate-100 p-1 rounded-lg hidden sm:flex">
-                        <button onClick={() => setComparisonChartType('bar')} className={`p-1.5 rounded transition-all ${comparisonChartType === 'bar' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><BarChart3 size={16}/></button>
-                        <button onClick={() => setComparisonChartType('pie')} className={`p-1.5 rounded transition-all ${comparisonChartType === 'pie' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><PieIcon size={16}/></button>
-                        <button onClick={() => setComparisonChartType('line')} className={`p-1.5 rounded transition-all ${comparisonChartType === 'line' ? 'bg-white shadow text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}><LineChartIcon size={16}/></button>
+                     <div className="flex bg-slate-100 p-1 rounded-lg">
+                        <button onClick={() => setComparisonChartType('bar')} className={`p-1.5 rounded ${comparisonChartType === 'bar' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}><BarChart3 size={16}/></button>
+                        <button onClick={() => setComparisonChartType('pie')} className={`p-1.5 rounded ${comparisonChartType === 'pie' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}><PieIcon size={16}/></button>
+                        <button onClick={() => setComparisonChartType('line')} className={`p-1.5 rounded ${comparisonChartType === 'line' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}><LineChartIcon size={16}/></button>
                      </div>
                   </div>
                </div>
 
-               <div className="h-[400px] w-full">
-                  {comparativeData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      {comparisonChartType === 'bar' ? (
-                          <BarChart data={comparativeData} margin={{top: 20, right: 30, left: 20, bottom: 60}}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
-                              <XAxis 
-                                dataKey="name" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{fill: '#64748b', fontSize: 11}} 
-                                interval={0}
-                                angle={-45}
-                                textAnchor="end"
-                              />
-                              <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
-                              <Tooltip 
-                                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                                  formatter={(value: number) => [new Intl.NumberFormat('th-TH').format(value), comparisonMetric]}
-                              />
-                              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                                  {comparativeData.map((_entry, index) => (
-                                      <Cell key={`cell-${index}`} fill={_entry.value >= 0 ? COLORS[index % COLORS.length] : '#ef4444'} />
-                                  ))}
-                              </Bar>
-                          </BarChart>
-                      ) : comparisonChartType === 'pie' ? (
-                          <PieChart>
-                              <Pie
-                                  data={comparativeData.filter(d => d.value > 0)} // Pie doesn't like negatives
-                                  cx="50%" cy="50%"
-                                  innerRadius={60} outerRadius={120}
-                                  paddingAngle={5}
-                                  dataKey="value"
-                              >
-                                  {comparativeData.map((_entry, index) => (
-                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                  ))}
-                              </Pie>
-                              <Tooltip formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)} />
-                              <Legend />
-                          </PieChart>
-                      ) : (
-                          <LineChart data={comparativeData} margin={{top: 20, right: 30, left: 20, bottom: 60}}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
-                              <XAxis 
-                                dataKey="name" 
-                                angle={-45}
-                                textAnchor="end"
-                                interval={0}
-                                height={60}
-                                tick={{fontSize: 11}}
-                              />
-                              <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
-                              <Tooltip formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)} />
-                              <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{r: 5}} />
-                          </LineChart>
-                      )}
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                      <Filter size={32} className="mb-2 opacity-50"/>
-                      <p>ไม่พบข้อมูลตามเงื่อนไขที่กำหนด</p>
-                    </div>
-                  )}
+               <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {comparisonChartType === 'bar' ? (
+                        <BarChart data={comparativeData} margin={{top: 20, right: 30, left: 20, bottom: 5}}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
+                            <Tooltip 
+                                contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                formatter={(value: number) => [new Intl.NumberFormat('th-TH').format(value), comparisonMetric]}
+                            />
+                            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                                {comparativeData.map((_entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={_entry.value >= 0 ? COLORS[index % COLORS.length] : '#ef4444'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    ) : comparisonChartType === 'pie' ? (
+                        <PieChart>
+                             <Pie
+                                data={comparativeData.filter(d => d.value > 0)} // Pie doesn't like negatives
+                                cx="50%" cy="50%"
+                                innerRadius={60} outerRadius={100}
+                                paddingAngle={5}
+                                dataKey="value"
+                             >
+                                {comparativeData.map((_entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                             </Pie>
+                             <Tooltip formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)} />
+                             <Legend />
+                        </PieChart>
+                    ) : (
+                        <LineChart data={comparativeData}>
+                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
+                             <XAxis dataKey="name" />
+                             <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`} />
+                             <Tooltip formatter={(value: number) => new Intl.NumberFormat('th-TH').format(value)} />
+                             <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{r: 6}} />
+                        </LineChart>
+                    )}
+                  </ResponsiveContainer>
                </div>
             </div>
-            
-            {/* NEW: Entity Specific Detail Card */}
-            {selectedEntityDetails && (
-              <div className="lg:col-span-3 bg-indigo-50 border border-indigo-100 p-6 rounded-2xl shadow-sm animate-fade-in-up">
-                 <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-white rounded-lg text-indigo-600 shadow-sm">
-                       <MapPin size={24} />
-                    </div>
-                    <div>
-                       <h3 className="text-lg font-bold text-indigo-900">ข้อมูลเจาะลึก: {selectedEntityDetails.name}</h3>
-                       <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
-                          selectedEntityDetails.liquidity_status === 'Good' ? 'bg-green-100 text-green-700 border-green-200' :
-                          selectedEntityDetails.liquidity_status === 'Average' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                          'bg-red-100 text-red-700 border-red-200'
-                       }`}>
-                          สถานะสภาพคล่อง: {selectedEntityDetails.liquidity_status}
-                       </span>
-                    </div>
-                 </div>
-                 <p className="text-slate-700 text-sm mb-6 leading-relaxed bg-white/50 p-4 rounded-xl border border-indigo-100/50">
-                    {selectedEntityDetails.summary}
-                 </p>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {selectedEntityDetails.key_metrics
-                        .filter(m => m.year === comparisonYear)
-                        .map((metric, idx) => (
-                        <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                           <p className="text-xs text-slate-500 mb-1">{metric.label}</p>
-                           <p className="text-lg font-bold text-slate-800">
-                              {new Intl.NumberFormat('th-TH').format(metric.value)} <span className="text-xs font-normal text-slate-400">{metric.unit}</span>
-                           </p>
-                        </div>
-                    ))}
-                 </div>
-              </div>
-            )}
 
             {/* Financial Ratios */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">

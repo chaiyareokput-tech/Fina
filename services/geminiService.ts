@@ -181,21 +181,11 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
     const model = "gemini-2.5-flash";
     
     const promptText = `
-      Act as a Highly Skilled Senior Accountant and Financial Analyst (นักบัญชีและนักวิเคราะห์การเงินระดับสูง).
-      Your task is to provide a professional, detailed, and accurate analysis of this financial document in Thai (ภาษาไทย).
+      Act as a World-Class Chief Financial Officer (CFO) and Investment Analyst.
+      Your task is to provide a deep, critical, and strategic analysis of this financial document in Thai (ภาษาไทย).
 
-      **Core Focus: Financial Ratio Analysis**
-      You must calculate and interpret key financial ratios with precision. Explain what these ratios indicate about the company's health regarding Liquidity, Profitability, Efficiency, and Leverage. Provide deep insights into *why* the ratios are at these levels based on the data provided.
-
-      **IMPORTANT: Entity & Branch Extraction Rules**
-      You must carefully identify and separate data for distinct operational units.
-      **PRIMARY KEYWORDS to look for in identifying Entities:**
-      1. **"H" Codes**: (e.g., H.1, H.2, H.1.2) - often used for departments or cost centers.
-      2. **"กฟส."**: (e.g., กฟส.เชียงใหม่, กฟส.ม.) - Provincial Electricity Authority (PEA) branches.
-      3. **"การไฟฟ้า"**: (e.g., การไฟฟ้าเขต 1, การไฟฟ้าส่วนภูมิภาค) - Electricity Areas/Authorities.
-
-      When populating 'entity_insights', create a separate entry for EACH unique unit found that matches these patterns. 
-      Do NOT aggregate them into "Overall" unless explicitly stated. Ensure the 'name' field clearly identifies the branch or code (e.g., "กฟส.แม่ริม").
+      **IMPORTANT: Comparative Analysis Instruction**
+      If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
       
       For 'entity_insights.key_metrics' AND 'key_metrics', you MUST:
       1. Extract data primarily for **Fiscal Year 2568 (or 2025)**. Only extract other years if 2568 is not found.
@@ -211,13 +201,13 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
 
       **Specific Analysis Instructions:**
 
-      1. **Executive Summary (Accountant's Perspective):**
-         - Summarize the financial position based on the audit evidence found.
-         - Highlight key variances, overall financial stability, and the quality of the financial statements.
+      1. **Executive Summary (Deep Dive):**
+         - Synthesize the relationship between Profitability, Liquidity, and Solvency.
+         - Evaluate the "Quality of Earnings" (e.g., are profits backed by operating cash flow?).
          - Identify the single most critical narrative driving these financial results.
 
       2. **Future Outlook & Strategy:**
-         - Based on current trends and ratio analysis, predict the financial trajectory for the next 6-12 months.
+         - Based on current trends, predict the financial trajectory for the next 6-12 months.
          - Identify specific internal/external risks (market, operational, financial).
          - Provide 3 concrete, high-level STRATEGIC RECOMMENDATIONS to improve financial health.
 
@@ -225,14 +215,12 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
          - Look beyond just large % changes. Identify "Red Flags" or unusual patterns that might indicate operational issues, inefficiency, or accounting anomalies.
          - Explain the *potential cause* and *business impact* of these anomalies.
 
-      4. **Entity/Department Analysis (Benchmarking):**
-         - Use the extracted entities (H, กฟส, การไฟฟ้า) to compare performance.
-         - Which branch/unit is the most profitable? Which has the highest cost?
+      4. **Entity/Department Analysis:**
+         - If distinct departments/entities exist compare their performance (Benchmarking). Which one is the cash cow? Which one is a drain?
 
-      5. **Ratios (Critical Priority):**
+      5. **Ratios:**
          - Calculate Liquidity, Profitability (Net Margin), Efficiency (Asset Turnover), Leverage (D/E).
-         - **Mandatory:** Rate them honestly as Good/Average/Poor based on general industry standards.
-         - Provide a clear, accountant-level explanation of what the ratio means for this specific entity.
+         - Rate them honestly as Good/Average/Poor based on general industry standards.
 
       Extract all data into the defined JSON schema.
     `;

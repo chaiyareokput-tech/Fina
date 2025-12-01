@@ -181,8 +181,11 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
     const model = "gemini-2.5-flash";
     
     const promptText = `
-      Act as a World-Class Chief Financial Officer (CFO) and Investment Analyst.
-      Your task is to provide a deep, critical, and strategic analysis of this financial document in Thai (ภาษาไทย).
+      Act as a Highly Skilled Senior Accountant and Financial Analyst (นักบัญชีและนักวิเคราะห์การเงินระดับสูง).
+      Your task is to provide a professional, detailed, and accurate analysis of this financial document in Thai (ภาษาไทย).
+
+      **Core Focus: Financial Ratio Analysis**
+      You must calculate and interpret key financial ratios with precision. Explain what these ratios indicate about the company's health regarding Liquidity, Profitability, Efficiency, and Leverage. Provide deep insights into *why* the ratios are at these levels based on the data provided.
 
       **IMPORTANT: Comparative Analysis Instruction**
       If the document contains data for multiple entities, branches, or departments (e.g., การไฟฟ้าเขตต่างๆ, สาขา A vs สาขา B), you MUST separate them in 'entity_insights'.
@@ -201,13 +204,13 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
 
       **Specific Analysis Instructions:**
 
-      1. **Executive Summary (Deep Dive):**
-         - Synthesize the relationship between Profitability, Liquidity, and Solvency.
-         - Evaluate the "Quality of Earnings" (e.g., are profits backed by operating cash flow?).
+      1. **Executive Summary (Accountant's Perspective):**
+         - Summarize the financial position based on the audit evidence found.
+         - Highlight key variances, overall financial stability, and the quality of the financial statements.
          - Identify the single most critical narrative driving these financial results.
 
       2. **Future Outlook & Strategy:**
-         - Based on current trends, predict the financial trajectory for the next 6-12 months.
+         - Based on current trends and ratio analysis, predict the financial trajectory for the next 6-12 months.
          - Identify specific internal/external risks (market, operational, financial).
          - Provide 3 concrete, high-level STRATEGIC RECOMMENDATIONS to improve financial health.
 
@@ -218,9 +221,10 @@ export const analyzeFinancialDocument = async (base64Data: string, mimeType: str
       4. **Entity/Department Analysis:**
          - If distinct departments/entities exist compare their performance (Benchmarking). Which one is the cash cow? Which one is a drain?
 
-      5. **Ratios:**
+      5. **Ratios (Critical Priority):**
          - Calculate Liquidity, Profitability (Net Margin), Efficiency (Asset Turnover), Leverage (D/E).
-         - Rate them honestly as Good/Average/Poor based on general industry standards.
+         - **Mandatory:** Rate them honestly as Good/Average/Poor based on general industry standards.
+         - Provide a clear, accountant-level explanation of what the ratio means for this specific entity.
 
       Extract all data into the defined JSON schema.
     `;
